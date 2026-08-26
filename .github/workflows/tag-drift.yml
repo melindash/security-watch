@@ -1,0 +1,128 @@
+name: Detect ref drift in mage-os mirrors
+
+# infrastructure/bin/mirror-sync.sh force-pushes tags and branches on every sync
+# ("Sometimes upstream re-tags a buggy release"). A rewritten tag changes what a
+# published release resolves to, and nothing currently records that it happened.
+
+on:
+  schedule:
+    # After sync-upstream-magento.yml (09:57) and merge-upstream-changes.yml (10:10).
+    - cron: "30 10 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: tag-drift
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    outputs:
+      critical: ${{ steps.scan.outputs.critical }}
+      summary: ${{ steps.scan.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Scan mirror refs
+        id: scan
+        run: |
+          set +e
+          node bin/scan-refs.js --write --report=drift-report.json | tee scan.log
+          echo "critical=$(node -p "require('./drift-report.json').critical")" >> "$GITHUB_OUTPUT"
+          {
+            echo 'summary<<DRIFT_EOF'
+            grep -E '^(CRITICAL|warning)' scan.log || echo 'no drift detected'
+            echo DRIFT_EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit updated baseline
+        run: |
+          if git diff --quiet -- state/refs.json; then
+            echo "baseline unchanged"
+            exit 0
+          fi
+          git config user.name 'Mage-OS'
+          git config user.email 'info@mage-os.org'
+          git add state/refs.json
+          git commit -m "Update mirror ref baseline"
+          git push
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift-report
+          path: drift-report.json
+
+  alert:
+    needs: scan
+    if: needs.scan.outputs.critical != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    # Promoted to env because the secrets context is not available in `if`.
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Open or update drift issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = process.env.SUMMARY;
+            const title = 'Mirror ref drift detected';
+            const body = [
+              'A tag was moved or deleted in one of the `mage-os/mirror-*` repositories.',
+              '',
+              'Tags are expected to be immutable. `bin/mirror-sync.sh` force-pushes tags on',
+              'every sync, so an upstream retag silently rewrites mirror history and changes',
+              'what an already-published release resolves to.',
+              '',
+              '```',
+              summary,
+              '```',
+              '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+
+            // Reuse one open issue rather than filing a new one per run: drift
+            // usually persists until someone acts on it.
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'ref-drift',
+            });
+
+            if (existing.data.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['ref-drift', 'severity:critical'],
+              });
+            }
+        env:
+          SUMMARY: ${{ needs.scan.outputs.summary }}
+
+      - name: Notify Discord
+        if: env.DISCORD_WEBHOOK != ''
+        uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
+        with:
+          args: "Mirror ref drift detected - a tag was moved or deleted. See ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

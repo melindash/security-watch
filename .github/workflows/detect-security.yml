@@ -1,0 +1,154 @@
+name: Detect upstream security releases
+
+# Adobe publishes no RSS, JSON or CSAF feed, and since July 2026 its isolated
+# security releases are not tagged on public GitHub at all. The bulletin index is
+# the only source that sees them; GHSA and Packagist add structured CVE metadata
+# and version constraints.
+
+on:
+  schedule:
+    # After sync-upstream-magento.yml (09:57) and merge-upstream-changes.yml (10:10).
+    # Daily is deliberate: upstream ships monthly, so polling harder adds noise
+    # rather than reducing latency.
+    - cron: "27 10 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: detect-security
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      count: ${{ steps.detect.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Detect new security releases
+        id: detect
+        run: |
+          set +e
+          node bin/detect-security.js --write --report=new-findings.json
+          echo "count=$(node -p "require('./new-findings.json').new")" >> "$GITHUB_OUTPUT"
+
+      - name: Commit updated state
+        run: |
+          if git diff --quiet -- state/seen.json; then
+            echo "state unchanged"
+            exit 0
+          fi
+          git config user.name 'Mage-OS'
+          git config user.email 'info@mage-os.org'
+          git add state/seen.json
+          git commit -m "Record newly detected security releases"
+          git push
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: new-findings
+          path: new-findings.json
+
+  track:
+    needs: detect
+    if: needs.detect.outputs.count != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: new-findings
+
+      - name: Determine supported lines
+        id: lines
+        uses: mage-os/github-actions/supported-version@main
+        with:
+          project: 'mage-os'
+          kind: 'currently-supported'
+
+      - name: Open tracking issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('new-findings.json', 'utf8'));
+
+            // One checklist row per supported line, so the issue states plainly
+            // what is outstanding rather than implying a single port suffices.
+            let lines = [];
+            try {
+              const matrix = JSON.parse(process.env.SUPPORTED_MATRIX || '{}');
+              lines = (matrix.include || [])
+                .map(entry => entry.line ? `${entry.line} (${entry.magento})` : entry.magento)
+                .filter(Boolean);
+            } catch (error) {
+              core.warning(`could not parse supported version matrix: ${error.message}`);
+            }
+            if (lines.length === 0) lines = ['(supported lines unavailable)'];
+
+            for (const finding of report.findings) {
+              const title = `[${finding.key.toUpperCase()}] upstream security release`;
+
+              const existing = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'all',
+                labels: `advisory:${finding.key}`,
+              });
+              if (existing.data.length) {
+                core.info(`${finding.key} already tracked in #${existing.data[0].number}`);
+                continue;
+              }
+
+              const body = [
+                `Detected via: **${finding.sources.join(', ')}**`,
+                finding.severity ? `Severity: **${finding.severity}**` : null,
+                finding.url ? `Source: ${finding.url}` : null,
+                '',
+                finding.cves.length ? `CVEs: ${finding.cves.join(', ')}` : null,
+                finding.versions && finding.versions.length
+                  ? `Versions referenced: ${finding.versions.join(', ')}`
+                  : null,
+                finding.affectedVersions ? `Affected: \`${finding.affectedVersions}\`` : null,
+                '',
+                '### Port status',
+                ...lines.map(line => `- [ ] ${line}`),
+                '- [ ] advisory published',
+                '- [ ] released',
+                '',
+                '---',
+                'Adobe ships isolated patches as `vendor/`-level files. Translate them with',
+                '`bin/translate-patch.js` in generate-mirror-repo-js rather than remapping paths by hand.',
+              ].filter(part => part !== null).join('\n');
+
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['security', `advisory:${finding.key}`],
+              });
+              core.info(`opened #${created.data.number} for ${finding.key}`);
+            }
+        env:
+          SUPPORTED_MATRIX: ${{ steps.lines.outputs.matrix }}
+
+      - name: Notify Discord
+        if: env.DISCORD_WEBHOOK != ''
+        uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
+        with:
+          args: "${{ needs.detect.outputs.count }} new upstream security release(s) detected. See ${{ github.server_url }}/${{ github.repository }}/issues?q=is%3Aissue+is%3Aopen+label%3Asecurity"
