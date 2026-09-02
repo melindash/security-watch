@@ -12,7 +12,7 @@
     "refs/heads/2.3.7-patch-34529": "4fcafa7b100c9292153cba03cd4b2d6852460241",
     "refs/heads/2.3.7-release": "580bb85cb0b66ce319268dfc3a6c99cd7e9675c4",
     "refs/heads/2.4": "fcebd3a4ad2a6863af2e2092f5e548cbd81cb0f8",
-    "refs/heads/2.4-develop": "ecbeba3a82977f95f65082e2961bd0bd8e10754b",
+    "refs/heads/2.4-develop": "ce95fbeee23183a8eb65e99f400ce3be8900eb41",
     "refs/heads/2.4.2": "2a774fc107e8b42d61b1ee0853c5c1b5bfd9f248",
     "refs/heads/2.4.3-patch-34184": "9acdc5698d8cb65ad5c68ceb7b46610b47660c01",
     "refs/heads/2.4.3-patch-34228": "d648aed04f2ccf0c8058d84ca5147a833f4ba62d",
@@ -651,7 +651,7 @@
   },
   "magento-composer-installer": {
     "refs/heads/0.4.x": "dc7065e47acec3338f282ea679d9ee815cd807ac",
-    "refs/heads/master": "85496104b065f5a7b8d824f37017c53dbbb93a44",
+    "refs/heads/master": "49d7c0def7c533d3c86fbf1715b86f6ca5eece93",
     "refs/tags/0.1.0": "fdab17180e34e5db1669110530744217f4af5ed0",
     "refs/tags/0.1.1": "373bc44cbe3f974b6d9f1e195e3c06f1e7fbacd3",
     "refs/tags/0.1.10": "29df8c84494e3592cf999d9cbadf15220a003ff1",
@@ -1287,7 +1287,7 @@
   },
   "commerce-data-export": {
     "refs/heads/MDEE-974": "2e092ff2fd5fdf86ed95e1acb9682006f3f371a0",
-    "refs/heads/main": "2f2781194c4cdb04fb724ee74581fdcc46ee573e"
+    "refs/heads/main": "22d541817bdaa283ea34b73c9393f8d14b950073"
   },
   "magento-semver": {
     "refs/heads/MC-33066": "cf94055a7031773c135bcb4eb711451cdacee711",
