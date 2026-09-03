@@ -12,7 +12,7 @@
     "refs/heads/2.3.7-patch-34529": "4fcafa7b100c9292153cba03cd4b2d6852460241",
     "refs/heads/2.3.7-release": "580bb85cb0b66ce319268dfc3a6c99cd7e9675c4",
     "refs/heads/2.4": "fcebd3a4ad2a6863af2e2092f5e548cbd81cb0f8",
-    "refs/heads/2.4-develop": "ce95fbeee23183a8eb65e99f400ce3be8900eb41",
+    "refs/heads/2.4-develop": "d7171b1088dbd37ec7b9069067a9a6359d182719",
     "refs/heads/2.4.2": "2a774fc107e8b42d61b1ee0853c5c1b5bfd9f248",
     "refs/heads/2.4.3-patch-34184": "9acdc5698d8cb65ad5c68ceb7b46610b47660c01",
     "refs/heads/2.4.3-patch-34228": "d648aed04f2ccf0c8058d84ca5147a833f4ba62d",
@@ -1287,7 +1287,7 @@
   },
   "commerce-data-export": {
     "refs/heads/MDEE-974": "2e092ff2fd5fdf86ed95e1acb9682006f3f371a0",
-    "refs/heads/main": "22d541817bdaa283ea34b73c9393f8d14b950073"
+    "refs/heads/main": "21d78c0223684128b9815854b5c8d6c3d497b87a"
   },
   "magento-semver": {
     "refs/heads/MC-33066": "cf94055a7031773c135bcb4eb711451cdacee711",
