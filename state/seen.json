@@ -2645,5 +2645,9 @@
       "CVE-2019-8228"
     ],
     "backfill": "ghsa-pagination"
+  },
+  "apsb26-146": {
+    "firstSeen": "2026-09-08T13:13:06.797Z",
+    "kind": "bulletin"
   }
 }
