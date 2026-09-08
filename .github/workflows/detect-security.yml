@@ -123,6 +123,22 @@ jobs:
                 continue;
               }
 
+              // Adobe's archive URL is derivable from the solution versions already parsed
+              // off the bulletin: 2.4.9-2026-aug is published as 2-4-9-aug-2026.zip.
+              // Verified in EVIDENCE §6c: 2.4.6 and later return 200 with no credentials,
+              // 2.4.5 and earlier sit under patch/auth/ and answer 401 without Composer keys.
+              const downloads = (finding.versions || [])
+                .map(version => {
+                  const parts = /^(2\.4\.(\d+)(?:-p\d+)?)-(\d{4})-([a-z]{3})$/i.exec(version);
+                  if (!parts) return null;
+                  const [, base, minor, year, month] = parts;
+                  const file = `${base.replace(/\./g, '-')}-${month.toLowerCase()}-${year}.zip`;
+                  const auth = Number(minor) <= 5;
+                  return `- \`${version}\` → https://repo.magento.com/patch/${auth ? 'auth/' : ''}${file}`
+                    + (auth ? '  *(Composer keys required)*' : '');
+                })
+                .filter(Boolean);
+
               const body = [
                 `Detected via: **${finding.sources.join(', ')}**`,
                 finding.severity ? `Severity: **${finding.severity}**` : null,
@@ -139,9 +155,43 @@ jobs:
                 '- [ ] advisory published',
                 '- [ ] released',
                 '',
+                '',
                 '---',
-                'Adobe ships isolated patches as `vendor/`-level files. Translate them with',
-                '`bin/translate-patch.js` in generate-mirror-repo-js rather than remapping paths by hand.',
+                '### Runbook',
+                '',
+                'Adobe ships one archive per upstream line, containing separate CE, EE and B2B',
+                'patches against an installed `vendor/` tree. Mage-OS is a source tree, so each',
+                'one needs translating before it applies. Do not remap paths by hand.',
+                '',
+                '**1. Download the archive for each line you support.**',
+                ...(downloads.length ? downloads : ['- (no solution versions parsed; read the bulletin)']),
+                '',
+                '**2. Unzip and take the `-CE.patch`.** The EE and B2B patches in the archive',
+                'cover code Mage-OS does not build.',
+                '',
+                '**3. Translate and apply across the supported lines:**',
+                '```',
+                'cd generate-mirror-repo-js',
+                'node bin/apply-security-patch.js \\',
+                '  --repoDir=/path/to/mageos-magento2 \\',
+                '  --gitRepoDir=/path/holding/the/other/checkouts \\',
+                `  --patch=<the -CE.patch> --label=${finding.key} \\`,
+                '  --branches=main,release/3.x',
+                '```',
+                '',
+                '`--gitRepoDir` is not optional in practice: without it, packages living in their',
+                'own repositories (inventory, page builder, security) fail to map. The command',
+                'leaves one branch per line named `<label>-<branch>` and exits non-zero if any',
+                'target needs a person (UNMAPPED, REJECTED, CONFLICT or PARTIAL).',
+                '',
+                '**4. Review each branch, then tick the boxes above.** A conflicted result is',
+                'still committed to its branch with the markers in place, so read before merging.',
+                '',
+                'Adobe patch files are proprietary. Never commit one; only the resulting change',
+                'to Mage-OS source is ours to publish.',
+                '',
+                '> `bin/apply-security-patch.js` lands with mage-os/generate-mirror-repo-js#356.',
+                '> Until that merges, run it from the `feat/patch-translation` branch.',
               ].filter(part => part !== null).join('\n');
 
               const created = await github.rest.issues.create({
