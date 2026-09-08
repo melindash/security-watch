@@ -114,17 +114,37 @@ const fetchBulletinIds = async () => {
 
 const parseBulletin = async (id) => {
   const html = await fetchText(BULLETIN_PAGE(id));
-  if (!html) return {id, url: BULLETIN_PAGE(id), cves: [], versions: [], severity: null};
+  if (!html) {
+    return {id, url: BULLETIN_PAGE(id), cves: [], versions: [], fixedVersions: [], hotfixUrl: null, severity: null};
+  }
 
   const text = stripTags(html);
   const cves = [...new Set([...html.matchAll(/CVE-\d{4}-\d{4,7}/g)].map(m => m[0]))];
 
+  const VERSION = /\b2\.4\.\d+(?:-p\d+|-\d{4}-[a-z]{3})?\b/gi;
+
   // Both the "and earlier" affected versions and the fixed versions appear as
   // bare version tokens; keeping both is enough to decide relevance, and avoids
   // depending on Adobe's table markup staying stable.
-  const versions = [...new Set(
-    [...text.matchAll(/\b2\.4\.\d+(?:-p\d+|-\d{4}-[a-z]{3})?\b/gi)].map(m => m[0])
-  )];
+  const versions = [...new Set([...text.matchAll(VERSION)].map(m => m[0]))];
+
+  // Relevance is one thing, telling someone what to download is another, and for
+  // that the two lists must not be conflated. APSB26-146 lists 2.4.9-2026-aug and
+  // five more under Affected Versions and ships no isolated release at all, so
+  // deriving download URLs from the whole page pointed at the vulnerable builds.
+  // Only the Solution table names what actually fixes it.
+  const solutionStart = text.search(/\bSolution\b/);
+  const solutionEnd = text.search(/\bVulnerability Details\b/);
+  const solution = solutionStart >= 0 && solutionEnd > solutionStart
+    ? text.slice(solutionStart, solutionEnd)
+    : '';
+  const fixedVersions = [...new Set([...solution.matchAll(VERSION)].map(m => m[0]))];
+
+  // A bulletin with no version in its Solution table is fixed by a hotfix instead,
+  // distributed under its own name and reachable only through the linked notes.
+  const hotfixUrl = ([...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)]
+    .map(match => [match[1], match[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()])
+    .find(([, label]) => /hotfix/i.test(label)) || [])[0] || null;
 
   const severity = ['Critical', 'Important', 'Moderate']
     .find(level => new RegExp(`\\b${level}\\b`).test(text)) || null;
@@ -138,7 +158,7 @@ const parseBulletin = async (id) => {
     || (text.match(/Last updated on ([A-Z][a-z]{2} \d{1,2},? \d{4})/) || [])[1]
     || null;
 
-  return {id, url: BULLETIN_PAGE(id), cves, versions, severity, published};
+  return {id, url: BULLETIN_PAGE(id), cves, versions, fixedVersions, hotfixUrl, severity, published};
 };
 
 /** The endpoint caps at 100 per page and now returns a full page, so the tail was
@@ -219,6 +239,8 @@ const main = async () => {
       sources: ['adobe'],
       cves: bulletin.cves,
       versions: bulletin.versions,
+      fixedVersions: bulletin.fixedVersions,
+      hotfixUrl: bulletin.hotfixUrl,
       severity: bulletin.severity,
       url: bulletin.url,
       published: bulletin.published,

@@ -123,11 +123,11 @@ jobs:
                 continue;
               }
 
-              // Adobe's archive URL is derivable from the solution versions already parsed
-              // off the bulletin: 2.4.9-2026-aug is published as 2-4-9-aug-2026.zip.
+              // Only the Solution table's versions name a fix. Affected versions look
+              // identical and deriving URLs from them sent people at the vulnerable builds.
               // Verified in EVIDENCE §6c: 2.4.6 and later return 200 with no credentials,
               // 2.4.5 and earlier sit under patch/auth/ and answer 401 without Composer keys.
-              const downloads = (finding.versions || [])
+              const downloads = (finding.fixedVersions || [])
                 .map(version => {
                   const parts = /^(2\.4\.(\d+)(?:-p\d+)?)-(\d{4})-([a-z]{3})$/i.exec(version);
                   if (!parts) return null;
@@ -138,6 +138,35 @@ jobs:
                     + (auth ? '  *(Composer keys required)*' : '');
                 })
                 .filter(Boolean);
+
+              // A bulletin whose Solution table carries no version is fixed by a hotfix,
+              // named for its internal ticket and linked only from Adobe's release notes.
+              // There is no URL to derive, and the notes usually carry required steps the
+              // patch does not perform: APSB26-146 also demanded encryption-key and full
+              // credential rotation, having been exploited in the wild before disclosure.
+              const acquisition = downloads.length
+                ? [
+                    '**1. Download the archive for each line you support.**',
+                    ...downloads,
+                    '',
+                    '**2. Unzip and take the `-CE.patch`.** The EE and B2B patches in the archive',
+                    'cover code Mage-OS does not build.',
+                  ]
+                : [
+                    '**1. This bulletin ships a hotfix, not an isolated release.** No archive URL',
+                    'is derivable from it. Open the notes and take the download link from there:',
+                    '',
+                    finding.hotfixUrl
+                      ? `- ${finding.hotfixUrl}`
+                      : `- (no hotfix link parsed; read ${finding.url})`,
+                    '',
+                    '**Read those notes in full before starting.** A hotfix commonly requires steps',
+                    'the patch itself does not perform, such as rotating the encryption key and every',
+                    'credential it protected.',
+                    '',
+                    '**2. Unzip and take the patch matching each line\'s upstream version**, per the',
+                    '`upstream` key in the version data (2.x → 2.4.8-p5, 3.x → 2.4.9).',
+                  ];
 
               const body = [
                 `Detected via: **${finding.sources.join(', ')}**`,
@@ -159,15 +188,11 @@ jobs:
                 '---',
                 '### Runbook',
                 '',
-                'Adobe ships one archive per upstream line, containing separate CE, EE and B2B',
-                'patches against an installed `vendor/` tree. Mage-OS is a source tree, so each',
-                'one needs translating before it applies. Do not remap paths by hand.',
+                'Adobe ships one patch per upstream line, written against an installed `vendor/`',
+                'tree. Mage-OS is a source tree, so each one needs translating before it applies.',
+                'Do not remap paths by hand.',
                 '',
-                '**1. Download the archive for each line you support.**',
-                ...(downloads.length ? downloads : ['- (no solution versions parsed; read the bulletin)']),
-                '',
-                '**2. Unzip and take the `-CE.patch`.** The EE and B2B patches in the archive',
-                'cover code Mage-OS does not build.',
+                ...acquisition,
                 '',
                 '**3. Translate and apply across the supported lines:**',
                 '```',
@@ -175,7 +200,7 @@ jobs:
                 'node bin/apply-security-patch.js \\',
                 '  --repoDir=/path/to/mageos-magento2 \\',
                 '  --gitRepoDir=/path/holding/the/other/checkouts \\',
-                `  --patch=<the -CE.patch> --label=${finding.key} \\`,
+                `  --patch=<the patch for this line> --label=${finding.key} \\`,
                 '  --branches=main,release/3.x',
                 '```',
                 '',
