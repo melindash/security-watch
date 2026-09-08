@@ -110,7 +110,9 @@ jobs:
             if (lines.length === 0) lines = ['(supported lines unavailable)'];
 
             for (const finding of report.findings) {
-              const title = `[${finding.key.toUpperCase()}] upstream security release`;
+              const title = finding.kind === 'archive'
+                ? `[${finding.key.replace(/^patch:/, '')}] patch archive published ahead of any bulletin`
+                : `[${finding.key.toUpperCase()}] upstream security release`;
 
               const existing = await github.rest.issues.listForRepo({
                 owner: context.repo.owner,
@@ -122,6 +124,77 @@ jobs:
                 core.info(`${finding.key} already tracked in #${existing.data[0].number}`);
                 continue;
               }
+
+              // Only the Solution table's versions name a fix. Affected versions look
+              // identical and deriving URLs from them sent people at the vulnerable builds.
+              //
+              // The version token is also not the archive name. Adobe writes the solution
+              // version without the upstream patch level (2.4.8-2026-sep) while the archive
+              // carries it (2-4-8-p5-sep-2026.zip), so a token-only derivation 404s for every
+              // line except the newest. The stems in state/patch-lines.json supply that level.
+              let stems = [];
+              try {
+                stems = JSON.parse(fs.readFileSync('state/patch-lines.json', 'utf8')).stems || [];
+              } catch (error) {
+                core.warning(`could not read patch stems: ${error.message}`);
+              }
+
+              const downloads = (finding.fixedVersions || [])
+                .map(version => {
+                  const parts = /^(2\.4\.\d+)(?:-p\d+)?-(\d{4})-([a-z]{3})$/i.exec(version);
+                  if (!parts) return null;
+                  const [, base, year, month] = parts;
+                  const prefix = base.replace(/\./g, '-');
+                  const stem = stems.find(s => s === prefix || s.startsWith(`${prefix}-p`));
+                  // Better to say the line is unmapped than to print a URL that 404s.
+                  return stem
+                    ? `- \`${version}\` → https://repo.magento.com/patch/${stem}-${month.toLowerCase()}-${year}.zip`
+                    : `- \`${version}\` → no stem for this line in \`state/patch-lines.json\`; see ${finding.url}`;
+                })
+                .filter(Boolean);
+
+              // A bulletin whose Solution table carries no version is fixed by a hotfix,
+              // named for its internal ticket and linked only from Adobe's release notes.
+              // There is no URL to derive, and the notes usually carry required steps the
+              // patch does not perform: APSB26-146 also demanded encryption-key and full
+              // credential rotation, having been exploited in the wild before disclosure.
+              const acquisition = finding.kind === 'archive'
+                ? [
+                    '**1. This was found by probing `repo.magento.com`, not from a bulletin.**',
+                    'Adobe published the archive before publishing anything describing it, so there',
+                    'are no CVEs, no severity and no affected-version list here yet. Download it:',
+                    '',
+                    `- ${finding.url}`,
+                    '',
+                    'A bulletin usually follows within days and will arrive as its own issue. Do not',
+                    'wait for it to start porting, and do not close this in favour of it.',
+                    '',
+                    '**2. Unzip and take the `-CE.patch`.** The EE and B2B patches in the archive',
+                    'cover code Mage-OS does not build.',
+                  ]
+                : downloads.length
+                ? [
+                    '**1. Download the archive for each line you support.**',
+                    ...downloads,
+                    '',
+                    '**2. Unzip and take the `-CE.patch`.** The EE and B2B patches in the archive',
+                    'cover code Mage-OS does not build.',
+                  ]
+                : [
+                    '**1. This bulletin ships a hotfix, not an isolated release.** No archive URL',
+                    'is derivable from it. Open the notes and take the download link from there:',
+                    '',
+                    finding.hotfixUrl
+                      ? `- ${finding.hotfixUrl}`
+                      : `- (no hotfix link parsed; read ${finding.url})`,
+                    '',
+                    '**Read those notes in full before starting.** A hotfix commonly requires steps',
+                    'the patch itself does not perform, such as rotating the encryption key and every',
+                    'credential it protected.',
+                    '',
+                    '**2. Unzip and take the patch matching each line\'s upstream version**, per the',
+                    '`upstream` key in the version data (2.x → 2.4.8-p5, 3.x → 2.4.9).',
+                  ];
 
               const body = [
                 `Detected via: **${finding.sources.join(', ')}**`,
@@ -139,9 +212,39 @@ jobs:
                 '- [ ] advisory published',
                 '- [ ] released',
                 '',
+                '',
                 '---',
-                'Adobe ships isolated patches as `vendor/`-level files. Translate them with',
-                '`bin/translate-patch.js` in generate-mirror-repo-js rather than remapping paths by hand.',
+                '### Runbook',
+                '',
+                'Adobe ships one patch per upstream line, written against an installed `vendor/`',
+                'tree. Mage-OS is a source tree, so each one needs translating before it applies.',
+                'Do not remap paths by hand.',
+                '',
+                ...acquisition,
+                '',
+                '**3. Translate and apply across the supported lines:**',
+                '```',
+                'cd generate-mirror-repo-js',
+                'node bin/apply-security-patch.js \\',
+                '  --repoDir=/path/to/mageos-magento2 \\',
+                '  --gitRepoDir=/path/holding/the/other/checkouts \\',
+                `  --patch=<the patch for this line> --label=${finding.key} \\`,
+                '  --branches=main,release/3.x',
+                '```',
+                '',
+                '`--gitRepoDir` is not optional in practice: without it, packages living in their',
+                'own repositories (inventory, page builder, security) fail to map. The command',
+                'leaves one branch per line named `<label>-<branch>` and exits non-zero if any',
+                'target needs a person (UNMAPPED, REJECTED, CONFLICT or PARTIAL).',
+                '',
+                '**4. Review each branch, then tick the boxes above.** A conflicted result is',
+                'still committed to its branch with the markers in place, so read before merging.',
+                '',
+                'Adobe patch files are proprietary. Never commit one; only the resulting change',
+                'to Mage-OS source is ours to publish.',
+                '',
+                '> `bin/apply-security-patch.js` lands with mage-os/generate-mirror-repo-js#356.',
+                '> Until that merges, run it from the `feat/patch-translation` branch.',
               ].filter(part => part !== null).join('\n');
 
               const created = await github.rest.issues.create({

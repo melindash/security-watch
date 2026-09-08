@@ -30,6 +30,9 @@ const BULLETIN_PAGE = id => `https://helpx.adobe.com/security/products/magento/$
 const GHSA = 'https://api.github.com/advisories?ecosystem=composer&affects=magento/community-edition&per_page=100';
 const PACKAGIST = 'https://packagist.org/api/security-advisories/?packages[]=magento/community-edition&packages[]=magento/product-community-edition';
 
+const ARCHIVE = (stem, month) => `https://repo.magento.com/patch/${stem}-${month}.zip`;
+const LINES_PATH = path.resolve(root, args.lines || 'state/patch-lines.json');
+
 const USER_AGENT = 'mage-os-security-watch (+https://github.com/mage-os/security-watch)';
 
 const fetchText = async (url, {json = false} = {}) => {
@@ -79,6 +82,60 @@ const fetchJson = async (url) => {
   }
 };
 
+const headOk = async (url) => {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: {'user-agent': USER_AGENT},
+      signal: AbortSignal.timeout(30000),
+    });
+    return response.status === 200;
+  } catch (exception) {
+    return null;
+  }
+};
+
+const monthStamp = (date) => {
+  const month = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  return `${month[date.getUTCMonth()]}-${date.getUTCFullYear()}`;
+};
+
+/** The fourth source, and the only one that owes nothing to Adobe's bulletin process.
+ *  On 2026-09-08 the September archives were live while no bulletin existed on either
+ *  index and neither GHSA nor Packagist had anything, so every other source was blind
+ *  by construction. Archive names are predictable, so they can be probed directly.
+ *
+ *  The previous month is probed as well, purely as a staleness check: those archives
+ *  are known to exist, so zero hits there means the stem list has rotted past a new
+ *  p-release and this source has gone quiet without failing. */
+const fetchArchives = async () => {
+  if (!fs.existsSync(LINES_PATH)) {
+    console.error(`  no ${LINES_PATH}; archive probing skipped`);
+    return [];
+  }
+
+  const stems = JSON.parse(fs.readFileSync(LINES_PATH, 'utf8')).stems || [];
+  const now = new Date();
+  const previous = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const [current, prior] = [monthStamp(now), monthStamp(previous)];
+
+  const found = [];
+  let priorHits = 0;
+
+  for (const stem of stems) {
+    if (await headOk(ARCHIVE(stem, current))) {
+      found.push({key: `patch:${stem}-${current}`, stem, month: current, url: ARCHIVE(stem, current)});
+    }
+    if (await headOk(ARCHIVE(stem, prior))) priorHits++;
+  }
+
+  if (stems.length && priorHits === 0) {
+    console.error(`  WARNING: no ${prior} archive matched any stem in ${LINES_PATH}; the list is probably stale`);
+  }
+
+  return found;
+};
+
 const stripTags = html => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** Adobe publishes no feed; every RSS, JSON and CSAF endpoint 404s. Both index
@@ -114,17 +171,37 @@ const fetchBulletinIds = async () => {
 
 const parseBulletin = async (id) => {
   const html = await fetchText(BULLETIN_PAGE(id));
-  if (!html) return {id, url: BULLETIN_PAGE(id), cves: [], versions: [], severity: null};
+  if (!html) {
+    return {id, url: BULLETIN_PAGE(id), cves: [], versions: [], fixedVersions: [], hotfixUrl: null, severity: null};
+  }
 
   const text = stripTags(html);
   const cves = [...new Set([...html.matchAll(/CVE-\d{4}-\d{4,7}/g)].map(m => m[0]))];
 
+  const VERSION = /\b2\.4\.\d+(?:-p\d+|-\d{4}-[a-z]{3})?\b/gi;
+
   // Both the "and earlier" affected versions and the fixed versions appear as
   // bare version tokens; keeping both is enough to decide relevance, and avoids
   // depending on Adobe's table markup staying stable.
-  const versions = [...new Set(
-    [...text.matchAll(/\b2\.4\.\d+(?:-p\d+|-\d{4}-[a-z]{3})?\b/gi)].map(m => m[0])
-  )];
+  const versions = [...new Set([...text.matchAll(VERSION)].map(m => m[0]))];
+
+  // Relevance is one thing, telling someone what to download is another, and for
+  // that the two lists must not be conflated. APSB26-146 lists 2.4.9-2026-aug and
+  // five more under Affected Versions and ships no isolated release at all, so
+  // deriving download URLs from the whole page pointed at the vulnerable builds.
+  // Only the Solution table names what actually fixes it.
+  const solutionStart = text.search(/\bSolution\b/);
+  const solutionEnd = text.search(/\bVulnerability Details\b/);
+  const solution = solutionStart >= 0 && solutionEnd > solutionStart
+    ? text.slice(solutionStart, solutionEnd)
+    : '';
+  const fixedVersions = [...new Set([...solution.matchAll(VERSION)].map(m => m[0]))];
+
+  // A bulletin with no version in its Solution table is fixed by a hotfix instead,
+  // distributed under its own name and reachable only through the linked notes.
+  const hotfixUrl = ([...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)]
+    .map(match => [match[1], match[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()])
+    .find(([, label]) => /hotfix/i.test(label)) || [])[0] || null;
 
   const severity = ['Critical', 'Important', 'Moderate']
     .find(level => new RegExp(`\\b${level}\\b`).test(text)) || null;
@@ -138,7 +215,7 @@ const parseBulletin = async (id) => {
     || (text.match(/Last updated on ([A-Z][a-z]{2} \d{1,2},? \d{4})/) || [])[1]
     || null;
 
-  return {id, url: BULLETIN_PAGE(id), cves, versions, severity, published};
+  return {id, url: BULLETIN_PAGE(id), cves, versions, fixedVersions, hotfixUrl, severity, published};
 };
 
 /** The endpoint caps at 100 per page and now returns a full page, so the tail was
@@ -207,6 +284,10 @@ const main = async () => {
   const packagist = await fetchPackagist();
   console.error(`  ${packagist.length} advisories`);
 
+  console.error('probing patch archives...');
+  const archives = await fetchArchives();
+  console.error(`  ${archives.length} archive(s) published this month`);
+
   // Records are keyed by bulletin id where one exists, because a single APSB
   // covers many CVEs and the project responds per bulletin, not per CVE.
   const records = new Map();
@@ -219,11 +300,27 @@ const main = async () => {
       sources: ['adobe'],
       cves: bulletin.cves,
       versions: bulletin.versions,
+      fixedVersions: bulletin.fixedVersions,
+      hotfixUrl: bulletin.hotfixUrl,
       severity: bulletin.severity,
       url: bulletin.url,
       published: bulletin.published,
     });
     bulletin.cves.forEach(cve => cveToBulletin.set(cve, bulletin.id));
+  }
+
+  for (const archive of archives) {
+    if (previous[archive.key]) continue;
+    records.set(archive.key, {
+      key: archive.key,
+      kind: 'archive',
+      sources: ['repo.magento.com'],
+      cves: [],
+      versions: [archive.stem.replace(/^(\d+)-(\d+)-(\d+)/, '$1.$2.$3')],
+      severity: null,
+      url: archive.url,
+      published: null,
+    });
   }
 
   const addCveSource = (entry, source) => {
