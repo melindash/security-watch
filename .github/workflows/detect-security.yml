@@ -127,17 +127,29 @@ jobs:
 
               // Only the Solution table's versions name a fix. Affected versions look
               // identical and deriving URLs from them sent people at the vulnerable builds.
-              // Verified in EVIDENCE §6c: 2.4.6 and later return 200 with no credentials,
-              // 2.4.5 and earlier sit under patch/auth/ and answer 401 without Composer keys.
+              //
+              // The version token is also not the archive name. Adobe writes the solution
+              // version without the upstream patch level (2.4.8-2026-sep) while the archive
+              // carries it (2-4-8-p5-sep-2026.zip), so a token-only derivation 404s for every
+              // line except the newest. The stems in state/patch-lines.json supply that level.
+              let stems = [];
+              try {
+                stems = JSON.parse(fs.readFileSync('state/patch-lines.json', 'utf8')).stems || [];
+              } catch (error) {
+                core.warning(`could not read patch stems: ${error.message}`);
+              }
+
               const downloads = (finding.fixedVersions || [])
                 .map(version => {
-                  const parts = /^(2\.4\.(\d+)(?:-p\d+)?)-(\d{4})-([a-z]{3})$/i.exec(version);
+                  const parts = /^(2\.4\.\d+)(?:-p\d+)?-(\d{4})-([a-z]{3})$/i.exec(version);
                   if (!parts) return null;
-                  const [, base, minor, year, month] = parts;
-                  const file = `${base.replace(/\./g, '-')}-${month.toLowerCase()}-${year}.zip`;
-                  const auth = Number(minor) <= 5;
-                  return `- \`${version}\` → https://repo.magento.com/patch/${auth ? 'auth/' : ''}${file}`
-                    + (auth ? '  *(Composer keys required)*' : '');
+                  const [, base, year, month] = parts;
+                  const prefix = base.replace(/\./g, '-');
+                  const stem = stems.find(s => s === prefix || s.startsWith(`${prefix}-p`));
+                  // Better to say the line is unmapped than to print a URL that 404s.
+                  return stem
+                    ? `- \`${version}\` → https://repo.magento.com/patch/${stem}-${month.toLowerCase()}-${year}.zip`
+                    : `- \`${version}\` → no stem for this line in \`state/patch-lines.json\`; see ${finding.url}`;
                 })
                 .filter(Boolean);
 
