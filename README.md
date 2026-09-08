@@ -74,7 +74,7 @@ anything absent from `state/seen.json`.
 
 | Source | What it provides | Why it is needed |
 |---|---|---|
-| `helpx.adobe.com` bulletin index | APSB ids, CVEs, affected and fixed versions, severity | The **only** source that sees the post-July-2026 isolated releases, which are never tagged on public GitHub |
+| `helpx.adobe.com/security/security-bulletin.html` | APSB ids, CVEs, affected and fixed versions, severity | The **only** source that sees the post-July-2026 isolated releases, which are never tagged on public GitHub |
 | GitHub Security Advisories | CVE, GHSA id, severity, publication date | Structured metadata, usually same-day |
 | Packagist advisories | Composer version constraints | The constraint format needed to decide whether a line is affected |
 
@@ -86,8 +86,18 @@ list records which feeds saw it.
 NVD is deliberately not used: its CPE naming returns zero results for modern
 Magento.
 
-Measured on a full run: 33 bulletins, 94 GHSA advisories, 484 Packagist
-advisories, 390 tracked keys, about 2 seconds.
+Measured on a full run: 34 bulletins, 356 GHSA advisories, 484 Packagist
+advisories, 393 tracked keys, about 4 seconds.
+
+### Which index is read
+
+Bulletin ids come from the **cross-product** index, filtered to hrefs under
+`products/magento/`. The per-product page `security/products/magento.html` is read too
+and unioned in, but it cannot be the primary source: it lags. APSB26-146 was published
+out of band on 2026-09-07, appeared on the cross-product index that day, and was still
+missing from the per-product page more than 24 hours later — which is exactly how long
+this watcher stayed silent about a critical bulletin. Reading both means a layout change
+on either one degrades to partial coverage rather than silence.
 
 ```bash
 node bin/detect-security.js                  # report new findings

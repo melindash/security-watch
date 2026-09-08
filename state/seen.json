@@ -2629,5 +2629,21 @@
     "cves": [
       "CVE-2019-7850"
     ]
+  },
+  "CVE-2019-8229": {
+    "firstSeen": "2022-05-24T17:00:29Z",
+    "kind": "cve",
+    "cves": [
+      "CVE-2019-8229"
+    ],
+    "backfill": "ghsa-pagination"
+  },
+  "CVE-2019-8228": {
+    "firstSeen": "2022-05-24T17:00:29Z",
+    "kind": "cve",
+    "cves": [
+      "CVE-2019-8228"
+    ],
+    "backfill": "ghsa-pagination"
   }
 }
