@@ -2649,5 +2649,25 @@
   "apsb26-146": {
     "firstSeen": "2026-09-08T13:13:06.797Z",
     "kind": "bulletin"
+  },
+  "patch:2-4-9-sep-2026": {
+    "firstSeen": "2026-09-08T15:43:02.488Z",
+    "kind": "archive",
+    "cves": []
+  },
+  "patch:2-4-8-p5-sep-2026": {
+    "firstSeen": "2026-09-08T15:43:02.488Z",
+    "kind": "archive",
+    "cves": []
+  },
+  "patch:2-4-7-p10-sep-2026": {
+    "firstSeen": "2026-09-08T15:43:02.488Z",
+    "kind": "archive",
+    "cves": []
+  },
+  "patch:2-4-6-p15-sep-2026": {
+    "firstSeen": "2026-09-08T15:43:02.488Z",
+    "kind": "archive",
+    "cves": []
   }
 }
