@@ -7,10 +7,19 @@ name: Detect upstream security releases
 
 on:
   schedule:
-    # After sync-upstream-magento.yml (09:57) and merge-upstream-changes.yml (10:10).
-    # Daily is deliberate: upstream ships monthly, so polling harder adds noise
-    # rather than reducing latency.
-    - cron: "27 10 * * *"
+    # Hourly. The previous daily 10:27 slot rested on "upstream ships monthly", which
+    # is true of scheduled releases and false of out-of-band ones: APSB26-146 shipped
+    # on a Monday afternoon with no warning.
+    #
+    # The declared minute is close to meaningless here. Measured over the last ten
+    # scheduled runs, GitHub started this workflow a median of 4.2h after 10:27, worst
+    # case 7.2h, never sooner than 3.0h. Daily cadence plus that drift put worst-case
+    # detection latency near 31h. Hourly does not remove the drift, but a delayed or
+    # dropped slot is then followed by another within the hour instead of the next day.
+    #
+    # More polling adds no issue noise: findings fire only on ids absent from
+    # state/seen.json, so a quiet hour costs one ~20s run and writes nothing.
+    - cron: "0 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -35,6 +44,11 @@ jobs:
 
       - name: Detect new security releases
         id: detect
+        env:
+          # The advisories API is public, but unauthenticated calls are limited to 60/h
+          # per IP and Actions runners share addresses. Hourly runs now page GHSA four
+          # deep, so an anonymous run can be throttled into a silent empty result.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
           node bin/detect-security.js --write --report=new-findings.json

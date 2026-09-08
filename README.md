@@ -69,8 +69,15 @@ maintained by hand, so the two cannot drift apart.
 
 ## Security release detection
 
-`bin/detect-security.js` polls three independent sources daily and reports
+`bin/detect-security.js` polls three independent sources hourly and reports
 anything absent from `state/seen.json`.
+
+Cadence was daily until 2026-09-08, on the reasoning that upstream ships monthly.
+Out-of-band bulletins break that: APSB26-146 arrived on a Monday afternoon. Worse,
+GitHub does not honour the declared minute. Across the ten scheduled runs before the
+change it started the workflow a median of 4.2h late, worst case 7.2h, never sooner
+than 3.0h, so a daily slot meant up to ~31h of latency. Hourly does not fix the drift;
+it bounds the damage, because a dropped slot is retried within the hour.
 
 | Source | What it provides | Why it is needed |
 |---|---|---|

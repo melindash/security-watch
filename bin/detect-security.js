@@ -59,7 +59,11 @@ const fetchJson = async (url) => {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const response = await fetch(url, {
-        headers: {'user-agent': USER_AGENT, accept: 'application/json'},
+        headers: {
+          'user-agent': USER_AGENT,
+          accept: 'application/json',
+          ...(process.env.GITHUB_TOKEN ? {authorization: `Bearer ${process.env.GITHUB_TOKEN}`} : {}),
+        },
         signal: AbortSignal.timeout(45000),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
