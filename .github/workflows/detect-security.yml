@@ -7,14 +7,23 @@ name: Detect upstream security releases
 
 on:
   schedule:
-    # After sync-upstream-magento.yml (09:57) and merge-upstream-changes.yml (10:10).
-    # Daily is deliberate: upstream ships monthly, so polling harder adds noise
-    # rather than reducing latency.
-    - cron: "27 10 * * *"
+    # Hourly. The previous daily 10:27 slot rested on "upstream ships monthly", which
+    # is true of scheduled releases and false of out-of-band ones: APSB26-146 shipped
+    # on a Monday afternoon with no warning.
+    #
+    # The declared minute is close to meaningless here. Measured over the last ten
+    # scheduled runs, GitHub started this workflow a median of 4.2h after 10:27, worst
+    # case 7.2h, never sooner than 3.0h. Daily cadence plus that drift put worst-case
+    # detection latency near 31h. Hourly does not remove the drift, but a delayed or
+    # dropped slot is then followed by another within the hour instead of the next day.
+    #
+    # More polling adds no issue noise: findings fire only on ids absent from
+    # state/seen.json, so a quiet hour costs one ~20s run and writes nothing.
+    - cron: "0 * * * *"
   workflow_dispatch: {}
 
 permissions:
-  contents: write
+  contents: read
   issues: write
 
 concurrency:
@@ -35,28 +44,28 @@ jobs:
 
       - name: Detect new security releases
         id: detect
+        env:
+          # The advisories API is public, but unauthenticated calls are limited to 60/h
+          # per IP and Actions runners share addresses. Hourly runs now page GHSA four
+          # deep, so an anonymous run can be throttled into a silent empty result.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
           node bin/detect-security.js --write --report=new-findings.json
           echo "count=$(node -p "require('./new-findings.json').new")" >> "$GITHUB_OUTPUT"
 
-      - name: Commit updated state
-        run: |
-          if git diff --quiet -- state/seen.json; then
-            echo "state unchanged"
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add state/seen.json
-          git commit -m "Record newly detected security releases"
-          git push
-
+      # The state file is uploaded, not committed. Committing here would mark a
+      # bulletin seen before `track` has opened an issue for it, so any failure in
+      # `track` would bury the finding permanently: the next run reads it as old and
+      # re-running the workflow does not recover it. The `record` job below commits
+      # only once tracking has actually succeeded.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: new-findings
-          path: new-findings.json
+          name: detect-output
+          path: |
+            new-findings.json
+            state/seen.json
 
   track:
     needs: detect
@@ -71,7 +80,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: new-findings
+          name: detect-output
 
       - name: Determine supported lines
         id: lines
@@ -152,3 +161,32 @@ jobs:
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
         with:
           args: "${{ needs.detect.outputs.count }} new upstream security release(s) detected. See ${{ github.server_url }}/${{ github.repository }}/issues?q=is%3Aissue+is%3Aopen+label%3Asecurity"
+
+  # Commits the baseline only after tracking has run, so a failure anywhere upstream
+  # leaves state untouched and the next scheduled run re-reports the same finding.
+  # The state file is carried over from `detect` rather than regenerated, so a bulletin
+  # published between the two jobs is not silently absorbed into the baseline.
+  record:
+    needs: [detect, track]
+    if: always() && needs.detect.result == 'success' && needs.track.result != 'failure' && needs.track.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: detect-output
+
+      - name: Commit updated state
+        run: |
+          if git diff --quiet -- state/seen.json; then
+            echo "state unchanged"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add state/seen.json
+          git commit -m "Record newly detected security releases"
+          git push

@@ -24,7 +24,8 @@ const args = Object.fromEntries(
 const root = path.join(__dirname, '..');
 const statePath = path.resolve(root, args.state || 'state/seen.json');
 
-const BULLETIN_INDEX = 'https://helpx.adobe.com/security/products/magento.html';
+const BULLETIN_INDEX = 'https://helpx.adobe.com/security/security-bulletin.html';
+const PRODUCT_INDEX = 'https://helpx.adobe.com/security/products/magento.html';
 const BULLETIN_PAGE = id => `https://helpx.adobe.com/security/products/magento/${id}.html`;
 const GHSA = 'https://api.github.com/advisories?ecosystem=composer&affects=magento/community-edition&per_page=100';
 const PACKAGIST = 'https://packagist.org/api/security-advisories/?packages[]=magento/community-edition&packages[]=magento/product-community-edition';
@@ -53,14 +54,62 @@ const fetchText = async (url, {json = false} = {}) => {
   }
 };
 
+/** fetchText discards headers, and rel=next is the only way to page the advisories API. */
+const fetchJson = async (url) => {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'user-agent': USER_AGENT,
+          accept: 'application/json',
+          ...(process.env.GITHUB_TOKEN ? {authorization: `Bearer ${process.env.GITHUB_TOKEN}`} : {}),
+        },
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const next = (/<([^>]+)>;\s*rel="next"/.exec(response.headers.get('link') || '') || [])[1] || null;
+      return {data: await response.json(), next};
+    } catch (exception) {
+      if (attempt === 3) {
+        console.error(`  fetch failed: ${url} (${exception.message})`);
+        return null;
+      }
+      await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+    }
+  }
+};
+
 const stripTags = html => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
-/** Adobe publishes no feed; every RSS, JSON and CSAF endpoint 404s. The index
- *  page is server rendered, so the bulletin ids can be read straight out of it. */
+/** Adobe publishes no feed; every RSS, JSON and CSAF endpoint 404s. Both index
+ *  pages are server rendered, so the bulletin ids can be read straight out of them.
+ *
+ *  The cross-product index is primary because the per-product page lags it: APSB26-146
+ *  (published 2026-09-07, out of band) appeared on the cross-product index the same day
+ *  and was still absent from products/magento.html on 2026-09-08. The per-product page
+ *  is still read and unioned in, so a layout change on either one degrades to partial
+ *  coverage instead of silence. Ids are taken from the bulletin href rather than from
+ *  loose text, because the cross-product index lists ~830 bulletins across all Adobe
+ *  products and only the magento path is ours. */
 const fetchBulletinIds = async () => {
-  const html = await fetchText(BULLETIN_INDEX);
-  if (!html) return [];
-  return [...new Set([...html.matchAll(/apsb(\d{2})-(\d+)/gi)].map(m => m[0].toLowerCase()))];
+  const ids = new Set();
+
+  const global = await fetchText(BULLETIN_INDEX);
+  if (global) {
+    for (const match of global.matchAll(/products\/magento\/(apsb\d{2}-\d+)\.html/gi)) {
+      ids.add(match[1].toLowerCase());
+    }
+  }
+  if (ids.size === 0) console.error('  WARNING: cross-product index yielded no magento bulletins');
+
+  const product = await fetchText(PRODUCT_INDEX);
+  if (product) {
+    for (const match of product.matchAll(/apsb(\d{2})-(\d+)/gi)) ids.add(match[0].toLowerCase());
+  } else {
+    console.error('  WARNING: per-product index unreachable');
+  }
+
+  return [...ids];
 };
 
 const parseBulletin = async (id) => {
@@ -80,15 +129,33 @@ const parseBulletin = async (id) => {
   const severity = ['Critical', 'Important', 'Moderate']
     .find(level => new RegExp(`\\b${level}\\b`).test(text)) || null;
 
-  const published = (text.match(/(?:Date Published|Published)[:\s]+([A-Z][a-z]+ \d{1,2},? \d{4})/) || [])[1] || null;
+  // The date sits in a three-column table that flattens to
+  // "Bulletin ID Date Published Priority APSB26-146 September 7, 2026 1", so the value
+  // trails the bulletin id rather than the "Date Published" header. Matching on the
+  // header alone returned null for every bulletin in this layout.
+  const published = (text.match(new RegExp(`${id}\\s+([A-Z][a-z]+ \\d{1,2},? \\d{4})`, 'i')) || [])[1]
+    || (text.match(/(?:Date Published|Originally Published)[:\s]+([A-Z][a-z]+ \d{1,2},? \d{4})/) || [])[1]
+    || (text.match(/Last updated on ([A-Z][a-z]{2} \d{1,2},? \d{4})/) || [])[1]
+    || null;
 
   return {id, url: BULLETIN_PAGE(id), cves, versions, severity, published};
 };
 
+/** The endpoint caps at 100 per page and now returns a full page, so the tail was
+ *  being dropped. Results are published-descending, so this never hid a new advisory,
+ *  but a state rebuild would have re-reported the truncated history as new. */
 const fetchGhsa = async () => {
-  const data = await fetchText(GHSA, {json: true});
-  if (!Array.isArray(data)) return [];
-  return data
+  const entries = [];
+  let url = GHSA;
+
+  for (let page = 1; url && page <= 20; page++) {
+    const response = await fetchJson(url);
+    if (!response || !Array.isArray(response.data)) break;
+    entries.push(...response.data);
+    url = response.next;
+  }
+
+  return entries
     .filter(entry => entry.cve_id)
     .map(entry => ({
       cve: entry.cve_id,
