@@ -1,0 +1,10 @@
+{
+  "note": "Archive name stems probed at repo.magento.com/patch/<stem>-<mon>-<year>.zip. These are upstream release identifiers including the patch level, which the bulletin's solution version omits: the September archive for the 2.4.8 line is 2-4-8-p5-sep-2026.zip, while the bulletin calls that version 2.4.8-2026-sep. Update this list when Adobe cuts a new p-release for a line. detect-security.js warns when the previous month returns no hits, which is what a stale list looks like.",
+  "verified": "2026-09-08",
+  "stems": [
+    "2-4-9",
+    "2-4-8-p5",
+    "2-4-7-p10",
+    "2-4-6-p15"
+  ]
+}

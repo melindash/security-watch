@@ -69,7 +69,7 @@ maintained by hand, so the two cannot drift apart.
 
 ## Security release detection
 
-`bin/detect-security.js` polls three independent sources hourly and reports
+`bin/detect-security.js` polls four independent sources hourly and reports
 anything absent from `state/seen.json`.
 
 Cadence was daily until 2026-09-08, on the reasoning that upstream ships monthly.
@@ -84,6 +84,7 @@ it bounds the damage, because a dropped slot is retried within the hour.
 | `helpx.adobe.com/security/security-bulletin.html` | APSB ids, CVEs, affected and fixed versions, severity | The **only** source that sees the post-July-2026 isolated releases, which are never tagged on public GitHub |
 | GitHub Security Advisories | CVE, GHSA id, severity, publication date | Structured metadata, usually same-day |
 | Packagist advisories | Composer version constraints | The constraint format needed to decide whether a line is affected |
+| `repo.magento.com/patch/` probe | The archive itself, before anything describes it | The only source independent of Adobe's bulletin process. On 2026-09-08 the September archives were live while no bulletin existed on either index and both advisory feeds were empty |
 
 Findings are keyed by bulletin id where one exists, because a single APSB covers
 many CVEs and the project responds per bulletin. CVEs already covered by a
@@ -92,6 +93,22 @@ list records which feeds saw it.
 
 NVD is deliberately not used: its CPE naming returns zero results for modern
 Magento.
+
+### Probing the patch archives
+
+The first three sources all derive from a bulletin, so they see nothing until Adobe
+publishes one. Archive names do not depend on that: they are
+`repo.magento.com/patch/<stem>-<mon>-<year>.zip`, and a `HEAD` says whether a release
+exists. October 2026 answers 404 across every stem, so a 200 is a real signal.
+
+The stems live in `state/patch-lines.json` and carry the upstream patch level, which
+the bulletin's own solution version omits: September's archive for the 2.4.8 line is
+`2-4-8-p5-sep-2026.zip`, while the bulletin calls that version `2.4.8-2026-sep`.
+Deriving a URL from the bulletin token alone yields `2-4-8-sep-2026.zip`, which 404s.
+
+That list needs updating whenever Adobe cuts a new p-release for a line, so each run
+also probes the previous month, whose archives are known to exist. Zero hits there
+means the list has rotted, and the run says so rather than going quiet.
 
 Measured on a full run: 34 bulletins, 356 GHSA advisories, 484 Packagist
 advisories, 393 tracked keys, about 4 seconds.

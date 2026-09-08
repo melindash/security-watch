@@ -110,7 +110,9 @@ jobs:
             if (lines.length === 0) lines = ['(supported lines unavailable)'];
 
             for (const finding of report.findings) {
-              const title = `[${finding.key.toUpperCase()}] upstream security release`;
+              const title = finding.kind === 'archive'
+                ? `[${finding.key.replace(/^patch:/, '')}] patch archive published ahead of any bulletin`
+                : `[${finding.key.toUpperCase()}] upstream security release`;
 
               const existing = await github.rest.issues.listForRepo({
                 owner: context.repo.owner,
@@ -144,7 +146,21 @@ jobs:
               // There is no URL to derive, and the notes usually carry required steps the
               // patch does not perform: APSB26-146 also demanded encryption-key and full
               // credential rotation, having been exploited in the wild before disclosure.
-              const acquisition = downloads.length
+              const acquisition = finding.kind === 'archive'
+                ? [
+                    '**1. This was found by probing `repo.magento.com`, not from a bulletin.**',
+                    'Adobe published the archive before publishing anything describing it, so there',
+                    'are no CVEs, no severity and no affected-version list here yet. Download it:',
+                    '',
+                    `- ${finding.url}`,
+                    '',
+                    'A bulletin usually follows within days and will arrive as its own issue. Do not',
+                    'wait for it to start porting, and do not close this in favour of it.',
+                    '',
+                    '**2. Unzip and take the `-CE.patch`.** The EE and B2B patches in the archive',
+                    'cover code Mage-OS does not build.',
+                  ]
+                : downloads.length
                 ? [
                     '**1. Download the archive for each line you support.**',
                     ...downloads,

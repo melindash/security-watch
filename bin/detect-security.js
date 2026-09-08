@@ -30,6 +30,9 @@ const BULLETIN_PAGE = id => `https://helpx.adobe.com/security/products/magento/$
 const GHSA = 'https://api.github.com/advisories?ecosystem=composer&affects=magento/community-edition&per_page=100';
 const PACKAGIST = 'https://packagist.org/api/security-advisories/?packages[]=magento/community-edition&packages[]=magento/product-community-edition';
 
+const ARCHIVE = (stem, month) => `https://repo.magento.com/patch/${stem}-${month}.zip`;
+const LINES_PATH = path.resolve(root, args.lines || 'state/patch-lines.json');
+
 const USER_AGENT = 'mage-os-security-watch (+https://github.com/mage-os/security-watch)';
 
 const fetchText = async (url, {json = false} = {}) => {
@@ -77,6 +80,60 @@ const fetchJson = async (url) => {
       await new Promise(resolve => setTimeout(resolve, attempt * 2000));
     }
   }
+};
+
+const headOk = async (url) => {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: {'user-agent': USER_AGENT},
+      signal: AbortSignal.timeout(30000),
+    });
+    return response.status === 200;
+  } catch (exception) {
+    return null;
+  }
+};
+
+const monthStamp = (date) => {
+  const month = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  return `${month[date.getUTCMonth()]}-${date.getUTCFullYear()}`;
+};
+
+/** The fourth source, and the only one that owes nothing to Adobe's bulletin process.
+ *  On 2026-09-08 the September archives were live while no bulletin existed on either
+ *  index and neither GHSA nor Packagist had anything, so every other source was blind
+ *  by construction. Archive names are predictable, so they can be probed directly.
+ *
+ *  The previous month is probed as well, purely as a staleness check: those archives
+ *  are known to exist, so zero hits there means the stem list has rotted past a new
+ *  p-release and this source has gone quiet without failing. */
+const fetchArchives = async () => {
+  if (!fs.existsSync(LINES_PATH)) {
+    console.error(`  no ${LINES_PATH}; archive probing skipped`);
+    return [];
+  }
+
+  const stems = JSON.parse(fs.readFileSync(LINES_PATH, 'utf8')).stems || [];
+  const now = new Date();
+  const previous = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const [current, prior] = [monthStamp(now), monthStamp(previous)];
+
+  const found = [];
+  let priorHits = 0;
+
+  for (const stem of stems) {
+    if (await headOk(ARCHIVE(stem, current))) {
+      found.push({key: `patch:${stem}-${current}`, stem, month: current, url: ARCHIVE(stem, current)});
+    }
+    if (await headOk(ARCHIVE(stem, prior))) priorHits++;
+  }
+
+  if (stems.length && priorHits === 0) {
+    console.error(`  WARNING: no ${prior} archive matched any stem in ${LINES_PATH}; the list is probably stale`);
+  }
+
+  return found;
 };
 
 const stripTags = html => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
@@ -227,6 +284,10 @@ const main = async () => {
   const packagist = await fetchPackagist();
   console.error(`  ${packagist.length} advisories`);
 
+  console.error('probing patch archives...');
+  const archives = await fetchArchives();
+  console.error(`  ${archives.length} archive(s) published this month`);
+
   // Records are keyed by bulletin id where one exists, because a single APSB
   // covers many CVEs and the project responds per bulletin, not per CVE.
   const records = new Map();
@@ -246,6 +307,20 @@ const main = async () => {
       published: bulletin.published,
     });
     bulletin.cves.forEach(cve => cveToBulletin.set(cve, bulletin.id));
+  }
+
+  for (const archive of archives) {
+    if (previous[archive.key]) continue;
+    records.set(archive.key, {
+      key: archive.key,
+      kind: 'archive',
+      sources: ['repo.magento.com'],
+      cves: [],
+      versions: [archive.stem.replace(/^(\d+)-(\d+)-(\d+)/, '$1.$2.$3')],
+      severity: null,
+      url: archive.url,
+      published: null,
+    });
   }
 
   const addCveSource = (entry, source) => {
