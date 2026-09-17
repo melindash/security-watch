@@ -12,7 +12,7 @@
     "refs/heads/2.3.7-patch-34529": "4fcafa7b100c9292153cba03cd4b2d6852460241",
     "refs/heads/2.3.7-release": "580bb85cb0b66ce319268dfc3a6c99cd7e9675c4",
     "refs/heads/2.4": "fcebd3a4ad2a6863af2e2092f5e548cbd81cb0f8",
-    "refs/heads/2.4-develop": "9a6a04c1b0f3fbf121e545a43c88e98abda36ab4",
+    "refs/heads/2.4-develop": "874f1f5cdf3bc52b61c3d66becf159cc16345d7a",
     "refs/heads/2.4.2": "2a774fc107e8b42d61b1ee0853c5c1b5bfd9f248",
     "refs/heads/2.4.3-patch-34184": "9acdc5698d8cb65ad5c68ceb7b46610b47660c01",
     "refs/heads/2.4.3-patch-34228": "d648aed04f2ccf0c8058d84ca5147a833f4ba62d",
@@ -877,7 +877,7 @@
     "refs/heads/MC-40905": "10270a3f9cf88eb502c36f232e98fe0228c9032d",
     "refs/heads/api-changes-develop": "47318fcd339435e38a29a57b88c19b8a2c68e630",
     "refs/heads/composite-products-support-for-isProductSalable": "943a0b41d2a6bbd5e765aa0ba3e52b5830ea4c87",
-    "refs/heads/develop": "851da59b7f718457ee7ad895c841c9044232854f",
+    "refs/heads/develop": "19af948121a792a289eb458e41e6b5075383fd8f",
     "refs/heads/fix-unit-test-242": "6e6575a7ad3ac3dae543bfc94226ef0dbb41fd05",
     "refs/heads/future-develop": "35e8e37bb7fda32a4fde6b3fb7b34e1d09756858",
     "refs/heads/php8-develop": "aaa2350fad27d42781144291857c5fdeb3588bc0",
@@ -1288,7 +1288,7 @@
   },
   "commerce-data-export": {
     "refs/heads/MDEE-974": "2e092ff2fd5fdf86ed95e1acb9682006f3f371a0",
-    "refs/heads/main": "21d78c0223684128b9815854b5c8d6c3d497b87a"
+    "refs/heads/main": "070a8b888c4af9bea76e262f66d376fed8ddcd84"
   },
   "magento-semver": {
     "refs/heads/MC-33066": "cf94055a7031773c135bcb4eb711451cdacee711",
@@ -1337,7 +1337,7 @@
     "refs/heads/magento_magento2_34228": "7e60cd1575bdfb6490099d971cb34b60014a6cd4",
     "refs/heads/magento_magento2_34528": "82a0f88f01b59884a9a16da144e4ef3548d1dcd3",
     "refs/heads/magento_magento2_34529": "2c7f09fe8ff66604a1aec0b72191ea37b7d04dec",
-    "refs/heads/master": "e39d3f66674fb52ae2fb24935fb006c69e085f20",
+    "refs/heads/master": "c73ab388cbb38c56c5e1a2c429100d2b722fbec2",
     "refs/heads/onprem": "7463a8faf17eb37d3a9629b37ecf3344bf8b9647",
     "refs/heads/test": "96936a13a042461c26eaed8a0b6bce4c5430b9c2",
     "refs/heads/tmp-fix": "d43aa6646481b345b1162be38412eaceaee2e4ed",
