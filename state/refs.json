@@ -1288,7 +1288,7 @@
   },
   "commerce-data-export": {
     "refs/heads/MDEE-974": "2e092ff2fd5fdf86ed95e1acb9682006f3f371a0",
-    "refs/heads/main": "a24a07af267a820364874f1cf332698ee8576210"
+    "refs/heads/main": "2cd3ee5192c729611f89e42487160754a06906c2"
   },
   "magento-semver": {
     "refs/heads/MC-33066": "cf94055a7031773c135bcb4eb711451cdacee711",
