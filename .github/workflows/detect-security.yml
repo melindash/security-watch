@@ -35,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       count: ${{ steps.detect.outputs.count }}
+      degraded: ${{ steps.detect.outputs.degraded }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +54,7 @@ jobs:
           set +e
           node bin/detect-security.js --write --report=new-findings.json
           echo "count=$(node -p "require('./new-findings.json').new")" >> "$GITHUB_OUTPUT"
+          echo "degraded=$(node -p "(require('./new-findings.json').degraded || []).length")" >> "$GITHUB_OUTPUT"
 
       # The state file is uploaded, not committed. Committing here would mark a
       # bulletin seen before `track` has opened an issue for it, so any failure in
@@ -66,6 +68,23 @@ jobs:
           path: |
             new-findings.json
             state/seen.json
+
+  # Fails the run when any source came back empty or unreachable, so a broken source
+  # shows as a red run instead of a log warning. It is a separate job so that `track`
+  # and `record` still act on whatever the healthy sources found.
+  health:
+    needs: detect
+    if: needs.detect.outputs.degraded != '0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: detect-output
+
+      - name: Report degraded sources
+        run: |
+          node -e "for (const d of require('./new-findings.json').degraded) console.log('::error title=' + d.source + '::' + d.reason)"
+          exit 1
 
   track:
     needs: detect
