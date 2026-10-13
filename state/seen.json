@@ -2688,5 +2688,9 @@
     "firstSeen": "2026-10-13T17:59:55.528Z",
     "kind": "archive",
     "cves": []
+  },
+  "apsb26-153": {
+    "firstSeen": "2026-10-13T19:51:22.179Z",
+    "kind": "bulletin"
   }
 }
