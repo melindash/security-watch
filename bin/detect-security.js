@@ -1,5 +1,5 @@
 /**
- * Detects new Magento security releases from three independent sources and
+ * Detects new Magento security releases from four independent sources and
  * reports anything not already recorded in state/seen.json.
  *
  * Since July 2026 Adobe publishes isolated security releases under date-based
@@ -24,7 +24,15 @@ const args = Object.fromEntries(
 const root = path.join(__dirname, '..');
 const statePath = path.resolve(root, args.state || 'state/seen.json');
 
-const BULLETIN_INDEX = 'https://helpx.adobe.com/security/security-bulletin.html';
+// The cross-product index page (helpx security-bulletin.html, now redirecting to
+// adobe.com/trust/security/bulletins-and-advisories.html) became a client-rendered
+// shell by 2026-09-30 and has listed no bulletin links since. Its cards come from this
+// Content-as-a-Service query, read here directly. `originSelection=hawks` is required;
+// without it the API silently returns an 8-card sample.
+const BULLETIN_INDEX = 'https://www.adobe.com/chimera-api/collection?originSelection=hawks'
+  + '&contentTypeTags=caas%3Acontent-type%2Fdocumentation'
+  + `&complexQuery=${encodeURIComponent('(("caas:trust-center/security-bulletin"))')}`
+  + '&language=en&country=us&draft=false&size=1000&flatFile=false';
 const PRODUCT_INDEX = 'https://helpx.adobe.com/security/products/magento.html';
 const BULLETIN_PAGE = id => `https://helpx.adobe.com/security/products/magento/${id}.html`;
 const GHSA = 'https://api.github.com/advisories?ecosystem=composer&affects=magento/community-edition&per_page=100';
@@ -34,6 +42,16 @@ const ARCHIVE = (stem, month) => `https://repo.magento.com/patch/${stem}-${month
 const LINES_PATH = path.resolve(root, args.lines || 'state/patch-lines.json');
 
 const USER_AGENT = 'mage-os-security-watch (+https://github.com/mage-os/security-watch)';
+
+/** A source that returns nothing is indistinguishable from a quiet month unless it is
+ *  reported. The cross-product index yielded zero ids for two weeks and the only trace
+ *  was a log line nobody reads, so APSB26-153 went undetected. Every degraded source
+ *  lands in the report, and the workflow fails the run on it. */
+const degraded = [];
+const degrade = (source, reason) => {
+  console.error(`  WARNING: ${source}: ${reason}`);
+  degraded.push({source, reason});
+};
 
 const fetchText = async (url, {json = false} = {}) => {
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -130,7 +148,7 @@ const fetchArchives = async () => {
   }
 
   if (stems.length && priorHits === 0) {
-    console.error(`  WARNING: no ${prior} archive matched any stem in ${LINES_PATH}; the list is probably stale`);
+    degrade('patch archives', `no ${prior} archive matched any stem in ${LINES_PATH}; the list is probably stale`);
   }
 
   return found;
@@ -138,41 +156,54 @@ const fetchArchives = async () => {
 
 const stripTags = html => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
-/** Adobe publishes no feed; every RSS, JSON and CSAF endpoint 404s. Both index
- *  pages are server rendered, so the bulletin ids can be read straight out of them.
+/** Adobe publishes no feed; every RSS, JSON and CSAF endpoint 404s. Two listings are
+ *  read and unioned, so either one breaking degrades to partial coverage, and the
+ *  break itself is reported rather than logged.
  *
- *  The cross-product index is primary because the per-product page lags it: APSB26-146
- *  (published 2026-09-07, out of band) appeared on the cross-product index the same day
- *  and was still absent from products/magento.html on 2026-09-08. The per-product page
- *  is still read and unioned in, so a layout change on either one degrades to partial
- *  coverage instead of silence. Ids are taken from the bulletin href rather than from
- *  loose text, because the cross-product index lists ~830 bulletins across all Adobe
- *  products and only the magento path is ours. */
+ *  The CaaS collection is primary because the per-product page lags it. APSB26-146 was
+ *  missing from products/magento.html a day after publication, and APSB26-153
+ *  (2026-10-13) was in the collection while that page still stopped at 146. Bulletins
+ *  now live under products/commerce/ on www.adobe.com; the older magento/ path is
+ *  matched too. The card link is kept because a new bulletin has no helpx page at all:
+ *  helpx magento/apsb26-153.html 404s. */
 const fetchBulletinIds = async () => {
   const ids = new Set();
+  const urls = new Map();
 
-  const global = await fetchText(BULLETIN_INDEX);
-  if (global) {
-    for (const match of global.matchAll(/products\/magento\/(apsb\d{2}-\d+)\.html/gi)) {
-      ids.add(match[1].toLowerCase());
+  const collection = await fetchText(BULLETIN_INDEX, {json: true});
+  const cards = collection && Array.isArray(collection.cards) ? collection.cards : null;
+  if (!cards) {
+    degrade('bulletin collection', 'unreachable or not a card list');
+  } else {
+    for (const card of cards) {
+      const match = /\/products\/(?:commerce|magento)\/(apsb\d{2}-\d+)/i.exec(card.overlayLink || '');
+      if (!match) continue;
+      const id = match[1].toLowerCase();
+      ids.add(id);
+      urls.set(id, `${card.overlayLink.replace(/\.html$/, '')}.html`);
     }
+    if (ids.size === 0) degrade('bulletin collection', `${cards.length} cards, none for Commerce`);
   }
-  if (ids.size === 0) console.error('  WARNING: cross-product index yielded no magento bulletins');
 
   const product = await fetchText(PRODUCT_INDEX);
-  if (product) {
-    for (const match of product.matchAll(/apsb(\d{2})-(\d+)/gi)) ids.add(match[0].toLowerCase());
+  if (!product) {
+    degrade('per-product index', 'unreachable');
   } else {
-    console.error('  WARNING: per-product index unreachable');
+    const before = ids.size;
+    const found = [...product.matchAll(/apsb\d{2}-\d+/gi)].map(match => match[0].toLowerCase());
+    found.forEach(id => ids.add(id));
+    if (found.length === 0) degrade('per-product index', 'page fetched but listed no bulletins');
+    if (ids.size > before) console.error(`  per-product index added ${ids.size - before} id(s) the collection lacks`);
   }
 
-  return [...ids];
+  return {ids: [...ids], urls};
 };
 
-const parseBulletin = async (id) => {
-  const html = await fetchText(BULLETIN_PAGE(id));
+const parseBulletin = async (id, url = BULLETIN_PAGE(id)) => {
+  const html = await fetchText(url);
   if (!html) {
-    return {id, url: BULLETIN_PAGE(id), cves: [], versions: [], fixedVersions: [], hotfixUrl: null, severity: null};
+    degrade('bulletin page', `${url} unreachable; ${id} reported without CVEs`);
+    return {id, url, cves: [], versions: [], fixedVersions: [], hotfixUrl: null, severity: null};
   }
 
   const text = stripTags(html);
@@ -215,7 +246,7 @@ const parseBulletin = async (id) => {
     || (text.match(/Last updated on ([A-Z][a-z]{2} \d{1,2},? \d{4})/) || [])[1]
     || null;
 
-  return {id, url: BULLETIN_PAGE(id), cves, versions, fixedVersions, hotfixUrl, severity, published};
+  return {id, url, cves, versions, fixedVersions, hotfixUrl, severity, published};
 };
 
 /** The endpoint caps at 100 per page and now returns a full page, so the tail was
@@ -262,7 +293,7 @@ const main = async () => {
   const baseline = Object.keys(previous).length === 0;
 
   console.error('fetching Adobe bulletin index...');
-  const bulletinIds = await fetchBulletinIds();
+  const {ids: bulletinIds, urls: bulletinUrls} = await fetchBulletinIds();
   console.error(`  ${bulletinIds.length} bulletins listed`);
 
   const unseen = bulletinIds.filter(id => !previous[id]);
@@ -273,16 +304,18 @@ const main = async () => {
 
   const bulletins = [];
   for (const id of toFetch) {
-    bulletins.push(await parseBulletin(id));
+    bulletins.push(await parseBulletin(id, bulletinUrls.get(id)));
   }
 
   console.error('fetching GHSA advisories...');
   const ghsa = await fetchGhsa();
   console.error(`  ${ghsa.length} advisories`);
+  if (ghsa.length === 0) degrade('GHSA', 'no advisories returned');
 
   console.error('fetching Packagist advisories...');
   const packagist = await fetchPackagist();
   console.error(`  ${packagist.length} advisories`);
+  if (packagist.length === 0) degrade('Packagist', 'no advisories returned');
 
   console.error('probing patch archives...');
   const archives = await fetchArchives();
@@ -369,7 +402,7 @@ const main = async () => {
     fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
   }
 
-  const report = {baseline, tracked: Object.keys(state).length, new: findings.length, findings};
+  const report = {baseline, tracked: Object.keys(state).length, new: findings.length, findings, degraded};
   if (args.report) {
     fs.writeFileSync(path.resolve(root, args.report), `${JSON.stringify(report, null, 2)}\n`);
   }
@@ -387,7 +420,8 @@ const main = async () => {
   }
   console.log('');
   console.log(`${findings.length} new finding(s); ${Object.keys(state).length} tracked`);
-  return findings.length ? 1 : 0;
+  if (degraded.length) console.log(`${degraded.length} source(s) degraded: ${degraded.map(entry => entry.source).join(', ')}`);
+  return degraded.length ? 2 : findings.length ? 1 : 0;
 };
 
 main().then(code => process.exit(code)).catch(exception => {

@@ -81,7 +81,7 @@ it bounds the damage, because a dropped slot is retried within the hour.
 
 | Source | What it provides | Why it is needed |
 |---|---|---|
-| `helpx.adobe.com/security/security-bulletin.html` | APSB ids, CVEs, affected and fixed versions, severity | The **only** source that sees the post-July-2026 isolated releases, which are never tagged on public GitHub |
+| Adobe bulletin collection (CaaS API) + `helpx.adobe.com/security/products/magento.html` | APSB ids, CVEs, affected and fixed versions, severity | The **only** source that sees the post-July-2026 isolated releases, which are never tagged on public GitHub |
 | GitHub Security Advisories | CVE, GHSA id, severity, publication date | Structured metadata, usually same-day |
 | Packagist advisories | Composer version constraints | The constraint format needed to decide whether a line is affected |
 | `repo.magento.com/patch/` probe | The archive itself, before anything describes it | The only source independent of Adobe's bulletin process. On 2026-09-08 the September archives were live while no bulletin existed on either index and both advisory feeds were empty |
@@ -115,13 +115,39 @@ advisories, 393 tracked keys, about 4 seconds.
 
 ### Which index is read
 
-Bulletin ids come from the **cross-product** index, filtered to hrefs under
-`products/magento/`. The per-product page `security/products/magento.html` is read too
-and unioned in, but it cannot be the primary source: it lags. APSB26-146 was published
-out of band on 2026-09-07, appeared on the cross-product index that day, and was still
-missing from the per-product page more than 24 hours later — which is exactly how long
-this watcher stayed silent about a critical bulletin. Reading both means a layout change
-on either one degrades to partial coverage rather than silence.
+Bulletin ids come from Adobe's Content-as-a-Service collection, filtered to card links
+under `products/commerce/` or `products/magento/`:
+
+```
+https://www.adobe.com/chimera-api/collection?originSelection=hawks&contentTypeTags=caas%3Acontent-type%2Fdocumentation&complexQuery=(("caas:trust-center/security-bulletin"))&language=en&country=us&draft=false&size=1000&flatFile=false
+```
+
+| Fact | Detail |
+|---|---|
+| Why the API, not the page | `security-bulletin.html` now redirects to `adobe.com/trust/security/bulletins-and-advisories.html`, a client-rendered shell with no bulletin links. Regexing it yielded zero ids from at least 2026-09-30, and APSB26-153 (2026-10-13) went undetected |
+| `originSelection=hawks` | Required. Without it the API returns an 8-card sample |
+| Scope | Current calendar year, 120 cards across all products on 2026-10-13. Older bulletins are already in `state/seen.json` |
+| Bulletin pages | New bulletins live at `www.adobe.com/trust/security/products/commerce/<id>.html` and have no helpx page; the card link is used as-is |
+
+The per-product page `security/products/magento.html` is read too and unioned in. It
+cannot be primary because it lags: APSB26-146 was missing from it more than 24 hours
+after publication, and APSB26-153 was absent the day it shipped.
+
+### Degraded sources fail the run
+
+A source that returns nothing looks like a quiet month. Each of these is recorded in
+the report's `degraded` list, and the `health` job fails the workflow run on it:
+
+| Source | Degraded when |
+|---|---|
+| Bulletin collection | Unreachable, or no Commerce cards |
+| Per-product index | Unreachable, or no bulletin ids on the page |
+| Bulletin page | A new bulletin's page is unreachable (it is still reported, without CVEs) |
+| GHSA, Packagist | Zero advisories |
+| Patch archives | Zero previous-month hits (stale stem list) |
+
+`track` and `record` still run on what the healthy sources found. The script exits 2
+when any source is degraded, otherwise 1 on new findings and 0 on none.
 
 ```bash
 node bin/detect-security.js                  # report new findings
@@ -129,7 +155,7 @@ node bin/detect-security.js --write          # update state
 node bin/detect-security.js --full           # fetch every bulletin page on first run
 ```
 
-Exits 1 when there are new findings, which is what the workflow gates on.
+The workflow gates on the report's `new` and `degraded` counts, not the exit code.
 
 ## Mage-OS has no advisory coverage
 
