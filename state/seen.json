@@ -2673,5 +2673,20 @@
   "apsb26-138": {
     "firstSeen": "2026-09-08T17:47:46.531Z",
     "kind": "bulletin"
+  },
+  "patch:2-4-9-oct-2026": {
+    "firstSeen": "2026-10-13T17:59:55.528Z",
+    "kind": "archive",
+    "cves": []
+  },
+  "patch:2-4-8-p5-oct-2026": {
+    "firstSeen": "2026-10-13T17:59:55.528Z",
+    "kind": "archive",
+    "cves": []
+  },
+  "patch:2-4-7-p10-oct-2026": {
+    "firstSeen": "2026-10-13T17:59:55.528Z",
+    "kind": "archive",
+    "cves": []
   }
 }
