@@ -209,7 +209,7 @@ const parseBulletin = async (id, url = BULLETIN_PAGE(id)) => {
   const text = stripTags(html);
   const cves = [...new Set([...html.matchAll(/CVE-\d{4}-\d{4,7}/g)].map(m => m[0]))];
 
-  const VERSION = /\b2\.4\.\d+(?:-p\d+|-\d{4}-[a-z]{3})?\b/gi;
+  const VERSION = /\b2\.4\.\d+(?:-p\d+|-\d{4}-[a-z]{3}|-(?:alpha|beta|rc)\d+)?\b/gi;
 
   // Both the "and earlier" affected versions and the fixed versions appear as
   // bare version tokens; keeping both is enough to decide relevance, and avoids
@@ -226,7 +226,15 @@ const parseBulletin = async (id, url = BULLETIN_PAGE(id)) => {
   const solution = solutionStart >= 0 && solutionEnd > solutionStart
     ? text.slice(solutionStart, solutionEnd)
     : '';
-  const fixedVersions = [...new Set([...solution.matchAll(VERSION)].map(m => m[0]))];
+  // The Solution table has one row per product, and Adobe Commerce carries lines that
+  // Open Source no longer gets: APSB26-153 fixes 2.4.4-2.4.6 for Commerce only, and
+  // their public archives 404. Mage-OS builds from Open Source, so that row wins when
+  // present. The row is the product name followed directly by a version, which skips
+  // the prose note above the table that also names the product.
+  const openSource = (/Magento Open Source\s+(2\.4\..*?)(?:Release notes|$)/.exec(solution) || [])[1] || '';
+  const fixedFrom = VERSION.test(openSource) ? openSource : solution;
+  VERSION.lastIndex = 0;
+  const fixedVersions = [...new Set([...fixedFrom.matchAll(VERSION)].map(m => m[0]))];
 
   // A bulletin with no version in its Solution table is fixed by a hotfix instead,
   // distributed under its own name and reachable only through the linked notes.

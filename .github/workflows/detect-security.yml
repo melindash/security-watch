@@ -196,6 +196,11 @@ jobs:
                     '**1. Download the archive for each line you support.**',
                     ...downloads,
                     '',
+                    // APSB26-153 ships archives and also requires the APSB26-146 hotfix on top;
+                    // without this line the runbook dropped that requirement entirely.
+                    ...(finding.hotfixUrl
+                      ? [`**Also required:** a hotfix linked from the bulletin. Read it before porting: ${finding.hotfixUrl}`, '']
+                      : []),
                     '**2. Unzip and take the `-CE.patch`.** The EE and B2B patches in the archive',
                     'cover code Mage-OS does not build.',
                   ]
