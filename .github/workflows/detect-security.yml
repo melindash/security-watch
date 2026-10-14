@@ -188,8 +188,12 @@ jobs:
                     'A bulletin usually follows within days and will arrive as its own issue. Do not',
                     'wait for it to start porting, and do not close this in favour of it.',
                     '',
-                    '**2. Unzip and take the `-CE.patch`.** The EE and B2B patches in the archive',
-                    'cover code Mage-OS does not build.',
+                    finding.cePatch
+                      ? `**2. Unzip. The CE patch is \`${finding.cePatch}\`.** Read from the archive`
+                      : '**2. Unzip and take the `-CE.patch`.** The archive listing could not be read.',
+                    finding.entries && finding.entries.length > 1
+                      ? `listing; the others (${finding.entries.filter(e => e !== finding.cePatch).join(', ')}) cover code Mage-OS does not build.`
+                      : 'The EE and B2B patches in the archive cover code Mage-OS does not build.',
                   ]
                 : downloads.length
                 ? [
@@ -252,7 +256,9 @@ jobs:
                 'node bin/apply-security-patch.js \\',
                 '  --repoDir=/path/to/mageos-magento2 \\',
                 '  --gitRepoDir=/path/holding/the/other/checkouts \\',
-                `  --patch=<the patch for this line> --label=${finding.key} \\`,
+                finding.cePatch
+                  ? `  --patch=<unzip dir>/${finding.cePatch} --label=${finding.key.replace(/^patch:/, '')} \\`
+                  : `  --patch=<the patch for this line> --label=${finding.key} \\`,
                 '  --branches=main,release/3.x',
                 '```',
                 '',

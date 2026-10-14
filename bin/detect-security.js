@@ -113,6 +113,30 @@ const headOk = async (url) => {
   }
 };
 
+/** The archive is a few KB, so reading its listing costs little and saves the reader
+ *  a step the runbook could otherwise only describe as "take the -CE.patch". Only the
+ *  central directory is parsed; no patch body is read, stored or redistributed. */
+const archiveEntries = async (url) => {
+  try {
+    const response = await fetch(url, {headers: {'user-agent': USER_AGENT}, signal: AbortSignal.timeout(60000)});
+    if (!response.ok) return [];
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const names = [];
+    for (let i = 0; i < buffer.length - 4; i++) {
+      if (buffer.readUInt32LE(i) !== 0x02014b50) continue;
+      const nameLength = buffer.readUInt16LE(i + 28);
+      const extra = buffer.readUInt16LE(i + 30);
+      const comment = buffer.readUInt16LE(i + 32);
+      names.push(buffer.toString('utf8', i + 46, i + 46 + nameLength));
+      i += 45 + nameLength + extra + comment;
+    }
+    return names.filter(name => name.endsWith('.patch') && !name.startsWith('__MACOSX'));
+  } catch (exception) {
+    console.error(`  could not read archive listing: ${url} (${exception.message})`);
+    return [];
+  }
+};
+
 const monthStamp = (date) => {
   const month = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
   return `${month[date.getUTCMonth()]}-${date.getUTCFullYear()}`;
@@ -126,7 +150,7 @@ const monthStamp = (date) => {
  *  The previous month is probed as well, purely as a staleness check: those archives
  *  are known to exist, so zero hits there means the stem list has rotted past a new
  *  p-release and this source has gone quiet without failing. */
-const fetchArchives = async () => {
+const fetchArchives = async (seen) => {
   if (!fs.existsSync(LINES_PATH)) {
     console.error(`  no ${LINES_PATH}; archive probing skipped`);
     return [];
@@ -141,8 +165,19 @@ const fetchArchives = async () => {
   let priorHits = 0;
 
   for (const stem of stems) {
-    if (await headOk(ARCHIVE(stem, current))) {
-      found.push({key: `patch:${stem}-${current}`, stem, month: current, url: ARCHIVE(stem, current)});
+    const key = `patch:${stem}-${current}`;
+    // HEAD every poll, GET only until the stem is recorded, so steady state stays cheap.
+    if (!seen[key] && await headOk(ARCHIVE(stem, current))) {
+      const url = ARCHIVE(stem, current);
+      const entries = await archiveEntries(url);
+      found.push({
+        key,
+        stem,
+        month: current,
+        url,
+        entries,
+        cePatch: entries.find(name => /-CE\.patch$/.test(name)) || null,
+      });
     }
     if (await headOk(ARCHIVE(stem, prior))) priorHits++;
   }
@@ -326,7 +361,7 @@ const main = async () => {
   if (packagist.length === 0) degrade('Packagist', 'no advisories returned');
 
   console.error('probing patch archives...');
-  const archives = await fetchArchives();
+  const archives = await fetchArchives(previous);
   console.error(`  ${archives.length} archive(s) published this month`);
 
   // Records are keyed by bulletin id where one exists, because a single APSB
@@ -361,6 +396,8 @@ const main = async () => {
       severity: null,
       url: archive.url,
       published: null,
+      entries: archive.entries,
+      cePatch: archive.cePatch,
     });
   }
 
