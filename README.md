@@ -173,6 +173,24 @@ node bin/detect-security.js --full           # fetch every bulletin page on firs
 
 The workflow gates on the report's `new` and `degraded` counts, not the exit code.
 
+### Port targets in the tracking issue
+
+Each issue lists one checklist row and one apply command per supported line. Branches are resolved when the issue opens, by `bin/resolve-lines.js`; none are written into the template.
+
+| Step | Rule |
+|---|---|
+| Supported lines | `mage-os/github-actions/supported-version`, `kind: currently-supported`; newest release per major |
+| Branch | The branch containing the parent of that release's tag (the tag sits on a generated "Release X" commit). `release/<major>.x` first; `main` only for the newest released major |
+| Patch | The line's `upstream` version mapped to a stem in `state/patch-lines.json`. Archive issues list only lines built on that archive's stem; bulletin downloads list only stems some line uses |
+| Unresolved | The row names the commit to cut `release/<major>.x` from |
+
+Resolved on 2026-10-14: `3.x (3.6.0, upstream 2.4.9) → main`. Upstream `release/3.x` has not moved since 2026-05-17 and does not contain 3.6.0, and `release/4.x` has no release, so neither is a target.
+
+```bash
+GITHUB_TOKEN=$(gh auth token) node bin/resolve-lines.js \
+  --matrix='{"include":[{"magento":"mage-os/project-community-edition:3.6.0","upstream":"2.4.9"}]}'
+```
+
 ## Mage-OS has no advisory coverage
 
 `https://packagist.org/api/security-advisories/?packages[]=mage-os/product-community-edition`
