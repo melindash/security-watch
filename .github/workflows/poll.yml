@@ -1,0 +1,58 @@
+name: Poll for upstream security releases
+
+# GitHub's scheduler is best-effort. On 2026-10-13 the hourly detect-security cron
+# ran three times in 24 hours, 7-8h apart, so patches published at 15:24Z were not
+# seen until 17:59Z. A single long job polling on its own clock avoids the
+# scheduler, and dispatches its successor before the 6h job limit.
+#
+# A run started by GITHUB_TOKEN does not trigger other workflows, except through
+# workflow_dispatch and repository_dispatch; that exception is what lets the chain
+# continue without a personal token or any outside host.
+#
+# To stop polling: `gh workflow disable poll.yml`. That halts both the chain and the
+# watchdog below.
+
+on:
+  schedule:
+    # Watchdog only. While a poll run is active this trigger queues behind it and is
+    # replaced by the chained run, so it does nothing unless the chain has broken.
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Length of this poll window, in minutes. Chained runs use the default."
+        default: "330"
+      interval:
+        description: "Minutes between polls."
+        default: "10"
+
+permissions:
+  contents: read
+  actions: write
+
+# One poller at a time. With cancel-in-progress off, a new trigger waits as the single
+# pending run and a newer trigger replaces it, so the chain and the watchdog can
+# never run two pollers side by side.
+concurrency:
+  group: poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Poll
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_MINUTES: ${{ inputs.minutes || '330' }}
+          INTERVAL_MINUTES: ${{ inputs.interval || '10' }}
+          POLL_REF: ${{ github.ref_name }}
+        run: bash bin/poll.sh

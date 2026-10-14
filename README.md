@@ -79,6 +79,22 @@ change it started the workflow a median of 4.2h late, worst case 7.2h, never soo
 than 3.0h, so a daily slot meant up to ~31h of latency. Hourly does not fix the drift;
 it bounds the damage, because a dropped slot is retried within the hour.
 
+### Polling
+
+`.github/workflows/poll.yml` runs `bin/poll.sh`: one job that runs the detector every 10 minutes for 330 minutes, then dispatches its own successor. It dispatches `detect-security.yml` only when the detector reports new findings, so quiet polls create no runs.
+
+| Fact | Detail |
+|---|---|
+| Why not cron | On 2026-10-13 the hourly cron ran 3 times in 24h, 7-8h apart. Archives live at 15:24Z were first seen at 17:59Z |
+| Why the chain works | `GITHUB_TOKEN` cannot trigger workflows, except via `workflow_dispatch` and `repository_dispatch` |
+| Duplicate pollers | Prevented by `concurrency: poll`; extra triggers wait as the single pending run |
+| Chain break | Watchdog cron `23 */2 * * *` restarts it; a failed handoff also fails the run |
+| Retry | The same findings are re-dispatched after 60 minutes if the pipeline has not recorded them |
+| Stop | `gh workflow disable poll.yml` |
+| Test | `gh workflow run poll.yml -f minutes=6 -f interval=3` |
+
+The hourly cron in `detect-security.yml` stays as a backup and as the cadence for the `health` check.
+
 | Source | What it provides | Why it is needed |
 |---|---|---|
 | Adobe bulletin collection (CaaS API) + `helpx.adobe.com/security/products/magento.html` | APSB ids, CVEs, affected and fixed versions, severity | The **only** source that sees the post-July-2026 isolated releases, which are never tagged on public GitHub |
