@@ -166,7 +166,7 @@ const fetchArchives = async (seen) => {
 
   for (const stem of stems) {
     const key = `patch:${stem}-${current}`;
-    // HEAD every hour, GET only the first time a stem appears, so steady state stays cheap.
+    // HEAD every poll, GET only until the stem is recorded, so steady state stays cheap.
     if (!seen[key] && await headOk(ARCHIVE(stem, current))) {
       const url = ARCHIVE(stem, current);
       const entries = await archiveEntries(url);
