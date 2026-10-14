@@ -108,6 +108,18 @@ jobs:
           project: 'mage-os'
           kind: 'currently-supported'
 
+      # Branch names are resolved from release tags at issue time, never written into
+      # the template: a hardcoded `main,release/3.x` pointed porters at a branch that
+      # had been stale since May while every 3.x release was cut from main.
+      - name: Resolve port targets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPPORTED_MATRIX: ${{ steps.lines.outputs.matrix }}
+        run: |
+          node bin/resolve-lines.js --matrix="$SUPPORTED_MATRIX" > port-lines.json \
+            || { echo "::warning::could not resolve port targets"; echo '[]' > port-lines.json; }
+          cat port-lines.json
+
       - name: Open tracking issues
         uses: actions/github-script@v7
         with:
@@ -119,14 +131,12 @@ jobs:
             // what is outstanding rather than implying a single port suffices.
             let lines = [];
             try {
-              const matrix = JSON.parse(process.env.SUPPORTED_MATRIX || '{}');
-              lines = (matrix.include || [])
-                .map(entry => entry.line ? `${entry.line} (${entry.magento})` : entry.magento)
-                .filter(Boolean);
+              lines = JSON.parse(fs.readFileSync('port-lines.json', 'utf8'));
             } catch (error) {
-              core.warning(`could not parse supported version matrix: ${error.message}`);
+              core.warning(`could not read port-lines.json: ${error.message}`);
             }
-            if (lines.length === 0) lines = ['(supported lines unavailable)'];
+            const lineLabel = line => `${line.line} (${line.version}, upstream ${line.upstream || '?'})`
+              + (line.branch ? ` → \`${line.branch}\`` : ` → **branch unresolved:** ${line.note}`);
 
             for (const finding of report.findings) {
               const title = finding.kind === 'archive'
@@ -165,6 +175,9 @@ jobs:
                   const [, base, year, month] = parts;
                   const prefix = base.replace(/\./g, '-');
                   const stem = stems.find(s => s === prefix || s.startsWith(`${prefix}-p`));
+                  // Adobe fixes lines Mage-OS does not build; listing them invites porting
+                  // a patch nobody ships. Unfiltered only when no line could be resolved.
+                  if (lines.length && stem && !lines.some(line => line.stem === stem)) return null;
                   // Better to say the line is unmapped than to print a URL that 404s.
                   return stem
                     ? `- \`${version}\` → https://repo.magento.com/patch/${stem}-${month.toLowerCase()}-${year}.zip`
@@ -224,6 +237,31 @@ jobs:
                     '`upstream` key in the version data (2.x → 2.4.8-p5, 3.x → 2.4.9).',
                   ];
 
+              // An archive is for one upstream stem; only lines built on it can use it.
+              const archiveStem = finding.kind === 'archive'
+                ? finding.key.replace(/^patch:/, '').replace(/-[a-z]{3}-\d{4}$/, '')
+                : null;
+              const label = finding.key.replace(/^patch:/, '');
+              const targets = lines.filter(line => !archiveStem || line.stem === archiveStem);
+              const commands = targets.length
+                ? targets.flatMap(line => line.branch
+                  ? [
+                      `${lineLabel(line)}:`,
+                      '```',
+                      'node bin/apply-security-patch.js \\',
+                      '  --repoDir=/path/to/mageos-magento2 \\',
+                      '  --gitRepoDir=/path/holding/the/other/checkouts \\',
+                      archiveStem && finding.cePatch
+                        ? `  --patch=<unzip dir>/${finding.cePatch} --label=${label} \\`
+                        : `  --patch=<the CE patch for upstream ${line.upstream || '?'}> --label=${label} \\`,
+                      `  --branches=${line.branch}`,
+                      '```',
+                    ]
+                  : [`${lineLabel(line)}: resolve the branch before porting.`, ''])
+                : archiveStem
+                ? [`No supported line is built on \`${archiveStem}\`, so this archive has nothing to port. Keep the issue for the record until the bulletin arrives.`]
+                : ['(supported lines unavailable; see the "Resolve port targets" step log)'];
+
               const body = [
                 `Detected via: **${finding.sources.join(', ')}**`,
                 finding.severity ? `Severity: **${finding.severity}**` : null,
@@ -236,7 +274,9 @@ jobs:
                 finding.affectedVersions ? `Affected: \`${finding.affectedVersions}\`` : null,
                 '',
                 '### Port status',
-                ...lines.map(line => `- [ ] ${line}`),
+                ...(lines.length
+                  ? lines.map(line => `- [ ] ${lineLabel(line)}`)
+                  : ['- [ ] (supported lines unavailable; see the "Resolve port targets" step log)']),
                 '- [ ] advisory published',
                 '- [ ] released',
                 '',
@@ -250,17 +290,10 @@ jobs:
                 '',
                 ...acquisition,
                 '',
-                '**3. Translate and apply across the supported lines:**',
-                '```',
-                'cd generate-mirror-repo-js',
-                'node bin/apply-security-patch.js \\',
-                '  --repoDir=/path/to/mageos-magento2 \\',
-                '  --gitRepoDir=/path/holding/the/other/checkouts \\',
-                finding.cePatch
-                  ? `  --patch=<unzip dir>/${finding.cePatch} --label=${finding.key.replace(/^patch:/, '')} \\`
-                  : `  --patch=<the patch for this line> --label=${finding.key} \\`,
-                '  --branches=main,release/3.x',
-                '```',
+                '**3. Translate and apply, once per supported line.** Each line is built on its',
+                'own upstream version, so each takes the patch for that version, not a shared one.',
+                '',
+                ...commands,
                 '',
                 '`--gitRepoDir` is not optional in practice: without it, packages living in their',
                 'own repositories (inventory, page builder, security) fail to map. The command',
