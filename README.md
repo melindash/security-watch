@@ -191,6 +191,57 @@ GITHUB_TOKEN=$(gh auth token) node bin/resolve-lines.js \
   --matrix='{"include":[{"magento":"mage-os/project-community-edition:3.6.0","upstream":"2.4.9"}]}'
 ```
 
+### Port PRs
+
+After the issues open, `track` sends one `security-patch` repository_dispatch per new finding and resolved line to `PORT_REPO`. That repository's `port-security-patch.yml` ports the archive to the line branch and opens a PR: ready when it applied cleanly, a draft otherwise. Merging stays with maintainers.
+
+| Setting | Kind | Purpose |
+|---|---|---|
+| `PORT_REPO` | variable | `owner/repo` receiving the dispatch. Unset disables dispatching |
+| `PORT_APP_ID`, `PORT_APP_PRIVATE_KEY` | variable, secret | GitHub App that mints the dispatch token. Used when `PORT_APP_ID` is set |
+| `PORT_DISPATCH_TOKEN` | secret | Fallback token when no App is configured. Fine-grained, `PORT_REPO` only, Contents: read and write |
+| `PORT_BRANCH_MAP` | variable | JSON `{"resolved": "target"}` to redirect a branch, e.g. for a rehearsal |
+
+| Rule | Detail |
+|---|---|
+| Payload | `{label, branch, archive, bulletin}`; `label` is the archive name |
+| One PR per archive and branch | An archive is usually detected days before its bulletin. Both dispatch the same label, and the port workflow skips a `security/<label>-<branch>` branch that already exists |
+| Hotfix bulletins | No archive is derivable, so nothing is dispatched; port from the issue runbook |
+| Failure | Fails `track`, so state is not recorded and the next run retries |
+
+Check a dispatch without sending it:
+
+```bash
+PORT_REPO=mage-os/mageos-magento2 node bin/dispatch-ports.js \
+  --findings=new-findings.json --lines=port-lines.json --dry-run
+```
+
+#### Demonstration setup (current)
+
+| Setting | Value |
+|---|---|
+| `PORT_REPO` | `melindash/mageos-magento2` |
+| `PORT_BRANCH_MAP` | `{"main":"rehearsal/3.x"}`. Fork `main` already carries October, so ports land on a branch cut before it |
+| `PORT_DISPATCH_TOKEN` | Fine-grained token owned by a maintainer, scoped to the fork. Demonstration only: production must not depend on a personal token |
+
+#### Moving to mage-os
+
+1. Merge `port-security-patch.yml` and `.github/scripts/port-security-patch.sh` into `mage-os/mageos-magento2` from the `ci/port-security-patch` branch of `melindash/mageos-magento2`. Rebase it onto current `main` first. Once mage-os/generate-mirror-repo-js#356 merges, set `PORTER_REPO: mage-os/generate-mirror-repo-js` and pin `PORTER_REF` to the merge commit.
+2. Rehearse it there with **Run workflow** against a throwaway branch before enabling dispatch.
+3. Create a GitHub App in the `mage-os` org with repository permission **Contents: read and write**, and install it on `mage-os/mageos-magento2`. This repository must be in the same org: the token is minted for this repository's owner.
+4. In `mage-os/security-watch` settings:
+
+   ```bash
+   gh variable set PORT_APP_ID -R mage-os/security-watch --body <app id>
+   gh secret set PORT_APP_PRIVATE_KEY -R mage-os/security-watch < app-private-key.pem
+   gh variable set PORT_REPO -R mage-os/security-watch --body mage-os/mageos-magento2
+   gh variable delete PORT_BRANCH_MAP -R mage-os/security-watch
+   gh secret delete PORT_DISPATCH_TOKEN -R mage-os/security-watch
+   ```
+
+5. Revoke the demonstration token and unset `PORT_REPO` on `melindash/security-watch`, so two watchers do not dispatch to two repositories.
+6. Optional: PRs opened with `GITHUB_TOKEN` do not trigger CI. To run CI on port PRs, give `port-security-patch.yml` an App token for `gh pr create` as well.
+
 ## Mage-OS has no advisory coverage
 
 `https://packagist.org/api/security-advisories/?packages[]=mage-os/product-community-edition`
