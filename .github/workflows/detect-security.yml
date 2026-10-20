@@ -328,6 +328,26 @@ jobs:
         with:
           args: "${{ needs.detect.outputs.count }} new upstream security release(s) detected. See ${{ github.server_url }}/${{ github.repository }}/issues?q=is%3Aissue+is%3Aopen+label%3Asecurity"
 
+      # After the issues and the notification, so a failed dispatch cannot hold either
+      # back. A failure here fails `track`, which leaves state unrecorded; the rerun finds
+      # the issues already open and dispatches again, and the port workflow skips any
+      # branch it already pushed.
+      - name: Mint port dispatch token
+        id: port-app
+        if: vars.PORT_REPO != '' && vars.PORT_APP_ID != ''
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.PORT_APP_ID }}
+          private-key: ${{ secrets.PORT_APP_PRIVATE_KEY }}
+
+      - name: Dispatch ports
+        if: vars.PORT_REPO != ''
+        env:
+          PORT_REPO: ${{ vars.PORT_REPO }}
+          PORT_BRANCH_MAP: ${{ vars.PORT_BRANCH_MAP }}
+          PORT_DISPATCH_TOKEN: ${{ steps.port-app.outputs.token || secrets.PORT_DISPATCH_TOKEN }}
+        run: node bin/dispatch-ports.js --findings=new-findings.json --lines=port-lines.json
+
   # Commits the baseline only after tracking has run, so a failure anywhere upstream
   # leaves state untouched and the next scheduled run re-reports the same finding.
   # The state file is carried over from `detect` rather than regenerated, so a bulletin
