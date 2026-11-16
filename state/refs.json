@@ -12,7 +12,7 @@
     "refs/heads/2.3.7-patch-34529": "4fcafa7b100c9292153cba03cd4b2d6852460241",
     "refs/heads/2.3.7-release": "580bb85cb0b66ce319268dfc3a6c99cd7e9675c4",
     "refs/heads/2.4": "fcebd3a4ad2a6863af2e2092f5e548cbd81cb0f8",
-    "refs/heads/2.4-develop": "116a6c2bc497160e138e139d2ab12a3eb7c1d820",
+    "refs/heads/2.4-develop": "90f60c1e8ae5d3b54415e70c931c2eacb2a031d8",
     "refs/heads/2.4.2": "2a774fc107e8b42d61b1ee0853c5c1b5bfd9f248",
     "refs/heads/2.4.3-patch-34184": "9acdc5698d8cb65ad5c68ceb7b46610b47660c01",
     "refs/heads/2.4.3-patch-34228": "d648aed04f2ccf0c8058d84ca5147a833f4ba62d",
@@ -198,6 +198,7 @@
     "refs/tags/2.4.0-p1": "ca6548f4352f6b3ad04e7ee97a6736e7a186ed8d",
     "refs/tags/2.4.1": "196840bc862a146b58e698553e4b58b7a4f3d44a",
     "refs/tags/2.4.1-p1": "5111efd59470bdd8bd177139856c60510a2a0a6f",
+    "refs/tags/2.4.10-alpha1": "028f929af03c3a5fa7a2bd3610b32a0beb28d2f4",
     "refs/tags/2.4.2": "37f46da9e37d90c4d59a10de6036360ba0650b50",
     "refs/tags/2.4.2-p1": "962e04bb83423b0abcd213f538af5257c1a1a2c0",
     "refs/tags/2.4.2-p2": "c99866bf91250995d50550e64ab23d0a4f7d60e4",
@@ -322,7 +323,7 @@
     "refs/heads/2.3.6-p1-develop": "05ea1caf856d0ba342937267c467d18d308485c9",
     "refs/heads/2.3.7-develop": "05ea1caf856d0ba342937267c467d18d308485c9",
     "refs/heads/2.4": "c10ef81f81842b1e81923be3348ad88a7b8d0c7a",
-    "refs/heads/2.4-develop": "15d8538019b0c5ddefd349dec18c2b35f384afbb",
+    "refs/heads/2.4-develop": "f9cc8c04ba59329d3cbcf96bb3982fe2214b8dec",
     "refs/heads/2.4-develop-s3": "a3a9ac9fcb3852fd77375c3d5bf11c99b7b41d4f",
     "refs/heads/2.4.0-develop": "ac1db92eba0d57aca2497d4bfd4b1217fd71b965",
     "refs/heads/2.4.0-p1-develop": "b9432dff554614984bceb5f0b03c5d9592edbaf6",
@@ -416,6 +417,7 @@
     "refs/tags/2.4.0": "ba6c8d496800b04df58b4ba07ca4b106d83386be",
     "refs/tags/2.4.1": "c07020c4815aad7ea63cf8b0d1fb92ba9996a246",
     "refs/tags/2.4.1-p1": "9f5f22880dbd9f00a173a520f68798f58564a49a",
+    "refs/tags/2.4.10-alpha1": "58b0c19089a7402a93981e723100a169bde0bdd1",
     "refs/tags/2.4.2": "295b5240c73f36d771ca9b4177077611d5d4c08a",
     "refs/tags/2.4.2-p1": "5a838c6dfcc88255a93ecc4bc012da5950e3be05",
     "refs/tags/2.4.2-p2": "4f7c7890e5addd960d6bd02816b795d3123c617b",
@@ -523,8 +525,8 @@
     "refs/heads/column-group-story": "6dd33b0544acdab1b814930b8e6d46514d496ca7",
     "refs/heads/column-group-story-initial": "2e9d6890ee15e7ca50953e4013c0302360632840",
     "refs/heads/column-group-test-fix": "923d7b4a0ae18f460cef1e53949e87ffda624238",
-    "refs/heads/develop": "30d2742ab3b9822029682e84d46dd6cb1dae8d80",
-    "refs/heads/future-develop": "30d2742ab3b9822029682e84d46dd6cb1dae8d80",
+    "refs/heads/develop": "4168b9072a27df89d278440bf8e2c50348017350",
+    "refs/heads/future-develop": "4168b9072a27df89d278440bf8e2c50348017350",
     "refs/heads/mftf-fixes-765": "9f69103f89b51fba41c8b828de812ab7eb682340",
     "refs/heads/omiroshnichenko-patch-1": "f7a9524a0e0d7c2a7046bcbb9a27db970f66d006",
     "refs/heads/php8-develop": "5bc060ff35df252808597d20bf40459a50fe6110",
@@ -611,6 +613,7 @@
     "refs/tags/1.7.6-alpha2": "50a3f7b7cf91d2867f6ed9df48097dc58a9916a1",
     "refs/tags/1.7.6-alpha3": "e77131bf23af2afe98dd8bccc8c3fec9c1a6c0ad",
     "refs/tags/1.7.6-beta1": "557015d167b0e19702f5943d8c72dbb93215d8ba",
+    "refs/tags/1.7.7-alpha1": "c5a64677566cb04ffcf67b9b70ab6efa5c583167",
     "refs/tags/v1.0.0": "e9942a30d5eff51e138e1bb13558d1e1b767d1c8",
     "refs/tags/v1.0.0-beta1": "ac1eae1a2f5df60f14d842b94b24167eb2b16251",
     "refs/tags/v1.0.0-beta2": "28a01e81f25189a1d07d83cf1f57bdf9a75c6097",
@@ -736,7 +739,7 @@
     "refs/heads/MC-35563": "e390f83b5a7803e70f64a4289f7564312e18b60d",
     "refs/heads/add-copying-txt": "f945e08968db2d2adf2f04aecf73a4e99fd52760",
     "refs/heads/api-changes-develop": "9d0942f2e2101df75d9da6b6e10c87c49f2853ea",
-    "refs/heads/develop": "1804e2c1c10bf31bfca6e70e6ea2f627e91a8428",
+    "refs/heads/develop": "1ada409df8fa54369bc6746af9086d970e7ff056",
     "refs/heads/future-develop": "f331f40b89233f6421d26569bc3530cfb45c342a",
     "refs/heads/generic-template-fix": "bf77106f1b5a1ce77736fb549d05ade9214b6574",
     "refs/heads/magento/security-package#203": "0f462db24d6a6be888d4e49bc49485b5e1b276d0",
@@ -845,7 +848,8 @@
     "refs/tags/1.1.8-alpha1": "1f77c81bb9338c6e8ab57dc9f3bf0aee49b74a38",
     "refs/tags/1.1.8-alpha2": "a56fb97dcaca41e0821354103228269f1b3b1a66",
     "refs/tags/1.1.8-alpha3": "770e967c57931109903a6d73d26e584932d13146",
-    "refs/tags/1.1.8-beta1": "b5b14e91ad8630613e327bc1954a99bb9aff8c28"
+    "refs/tags/1.1.8-beta1": "b5b14e91ad8630613e327bc1954a99bb9aff8c28",
+    "refs/tags/1.1.9-alpha1": "01d2043cd8917d1aeeaf05a4c592711f9fbf3a50"
   },
   "inventory": {
     "refs/heads/1.1-develop": "c86a881a58e886053fc8da8ef13ade224cff767d",
@@ -877,7 +881,7 @@
     "refs/heads/MC-40905": "10270a3f9cf88eb502c36f232e98fe0228c9032d",
     "refs/heads/api-changes-develop": "47318fcd339435e38a29a57b88c19b8a2c68e630",
     "refs/heads/composite-products-support-for-isProductSalable": "943a0b41d2a6bbd5e765aa0ba3e52b5830ea4c87",
-    "refs/heads/develop": "dea64c026e225763579512c49a34d6ce3cc3199d",
+    "refs/heads/develop": "bd438040f592b355cf7b8ba0b3639f88243b7bc4",
     "refs/heads/fix-unit-test-242": "6e6575a7ad3ac3dae543bfc94226ef0dbb41fd05",
     "refs/heads/future-develop": "35e8e37bb7fda32a4fde6b3fb7b34e1d09756858",
     "refs/heads/php8-develop": "aaa2350fad27d42781144291857c5fdeb3588bc0",
@@ -894,6 +898,7 @@
     "refs/tags/1.1.7-p1": "ead18e5a1a2da95932ad4b889c31981d356e86c8",
     "refs/tags/1.2.0": "50315c91617073d5d05f2503dbfd8d29cb93d9af",
     "refs/tags/1.2.1": "080df1c6a35cdd0afefec18fa86aaf80adb18aec",
+    "refs/tags/1.2.10-alpha1": "af4c6284c9ae4e603170fe8663b14f92c635260d",
     "refs/tags/1.2.2": "56702f7602c4100248af952b5883c3bc5169456f",
     "refs/tags/1.2.3": "d5b6958ed9dc87608069659f7fd386fa8b43aa1e",
     "refs/tags/1.2.3-p1": "bae152b55dd95c51e4e7eff6e0bd904c89aeb0a7",
@@ -1137,7 +1142,8 @@
     "refs/tags/2.2.3-beta1": "33537fe76af9cd749f9f5c55184dc413a8f9e354",
     "refs/tags/2.2.3-beta2": "ba543889456abeba63a51686fb2f55330dba3638",
     "refs/tags/2.2.4": "34472fd9d646183cb9fbc5d74bd72924b97245ed",
-    "refs/tags/2.2.4-beta1": "e94e8d3af9b24dd7e37ceee95381b7a0020c9d51"
+    "refs/tags/2.2.4-beta1": "e94e8d3af9b24dd7e37ceee95381b7a0020c9d51",
+    "refs/tags/2.2.5-alpha1": "9f569d3b0596d285cebf84d2425514ab797e2d13"
   },
   "adobe-stock-integration": {
     "refs/heads/1.0-develop": "80738781d7d3d26e5e9851523de75525a61a8beb",
@@ -1156,7 +1162,7 @@
     "refs/heads/2.1.1-develop": "ef7a02cf5126334199b4a7b5ded72d0be1a734ef",
     "refs/heads/2.1.2": "a09ba766cdc3c1f266713dae0d963ebe68537ea6",
     "refs/heads/api-changes-develop": "2c4288eaa21ac98b39b39c202424f984ffcaaa24",
-    "refs/heads/develop": "27c1e7bcf7c23f6ecc7a9baab4dca4d3ad736259",
+    "refs/heads/develop": "eff73147cfe414a4ded44dd71de55ffb5cce17e2",
     "refs/heads/future-develop": "48c5fa7a8bf2cc1e805fd5c3e1ab5faa206b069d",
     "refs/heads/php8-develop": "5195b1845091cd223e2e9d5c6ca74da393b4b306",
     "refs/heads/platform-health": "2e64599032b67999d74cc7eb0c1c93ccfedbfa42",
@@ -1244,7 +1250,8 @@
     "refs/tags/2.1.8-alpha1": "6c7301f80d72d5a90504c5992ec19d293f08fca4",
     "refs/tags/2.1.8-alpha2": "0d692eb9c84c8c89ad4b5a5068971b72178d72ac",
     "refs/tags/2.1.8-alpha3": "97b12e131b8966c359a8b601ee28d66f454dcf09",
-    "refs/tags/2.1.8-beta1": "aae8b95670ec04c11260569465cd272b68f6abff"
+    "refs/tags/2.1.8-beta1": "aae8b95670ec04c11260569465cd272b68f6abff",
+    "refs/tags/2.1.9-alpha1": "401a49241b98bc33425b2d501783109ec6bd2aa7"
   },
   "composer": {
     "refs/heads/1.0": "a6f73d8633252437ae54d2920e22ac112f0be151",
@@ -1288,7 +1295,7 @@
   },
   "commerce-data-export": {
     "refs/heads/MDEE-974": "2e092ff2fd5fdf86ed95e1acb9682006f3f371a0",
-    "refs/heads/main": "f9a22c985e607e172bf7fb7b98e965e49b876547"
+    "refs/heads/main": "67ab3f373c632adac8dc38e172bd16f61305aa8e"
   },
   "magento-semver": {
     "refs/heads/MC-33066": "cf94055a7031773c135bcb4eb711451cdacee711",
@@ -1337,7 +1344,7 @@
     "refs/heads/magento_magento2_34228": "7e60cd1575bdfb6490099d971cb34b60014a6cd4",
     "refs/heads/magento_magento2_34528": "82a0f88f01b59884a9a16da144e4ef3548d1dcd3",
     "refs/heads/magento_magento2_34529": "2c7f09fe8ff66604a1aec0b72191ea37b7d04dec",
-    "refs/heads/master": "11d565bdde197b9c7bac859a5698e99098b48457",
+    "refs/heads/master": "0e3cc5455457fb22f74a32d31d577a141d7f6338",
     "refs/heads/onprem": "7463a8faf17eb37d3a9629b37ecf3344bf8b9647",
     "refs/heads/test": "96936a13a042461c26eaed8a0b6bce4c5430b9c2",
     "refs/heads/tmp-fix": "d43aa6646481b345b1162be38412eaceaee2e4ed",
@@ -1452,6 +1459,8 @@
     "refs/tags/1.1.82": "4f66856b57c89ae9dcf4d8d934e8e56b84e04760",
     "refs/tags/1.1.83": "8370f9642aff648a3a8a6fdc1d92c113bc19e5c7",
     "refs/tags/1.1.84": "11d565bdde197b9c7bac859a5698e99098b48457",
+    "refs/tags/1.1.85": "3610179336d510e38921cb84f6c8a8ea7d9b60b5",
+    "refs/tags/1.1.86": "0e3cc5455457fb22f74a32d31d577a141d7f6338",
     "refs/tags/1.1.9": "6bc47c8277e39271696b6b08c26030ede7e4d323"
   },
   "magento-cloud-patches": {
@@ -1711,11 +1720,13 @@
     "refs/tags/5.0.4": "d43d2a420e363a1fee24da21b89c4dc7d3a156e9",
     "refs/tags/5.0.5": "7670d653f726a0a122fa6a0d3fc4639825c65c83",
     "refs/tags/5.0.6": "2eac1598a9ad5f5427fed35c31ae2bdb1cf6df93",
+    "refs/tags/5.0.7": "b75b6300b32cfcd89641a94f51c6dcacbf411070",
     "refs/tags/5.1.0": "695d92aaa976c74a92e794f1c76b31d89b7732c7",
     "refs/tags/5.2.0": "5b7e4912ababd79288827f51f52d3beb4afcb8c2",
     "refs/tags/5.3.0": "e75f0077ca96ef4ee693ceb39c6e31cb500cf062",
     "refs/tags/6.0.0": "c09a7383eeb3c8358b2492f0ddb1c3ea9f1bb4e0",
     "refs/tags/6.0.1": "efbabcd2a5351e36c6770177880e15afc76a350a",
+    "refs/tags/6.0.2": "40968c52e336eba302e918486b71cc0780309100",
     "refs/tags/7.0.0": "93a053b281ff10aafe5f28061923892076c670b4"
   },
   "magento-zend-db": {
