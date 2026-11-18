@@ -1529,7 +1529,7 @@
   },
   "magento-coding-standard": {
     "refs/heads/MC-5374-Add-PHPCompatibility-Sniffs": "8aa0f25d189079fc8101014bd3b8a79d2a78a665",
-    "refs/heads/develop": "e4af7c6c79d0bfa89deb06cba1a3d49405635afc",
+    "refs/heads/develop": "6dfbeb6f1e3401329af2fc9b34448df38a124e58",
     "refs/heads/dng-dev-patch-1": "139f16ec6713f46a9e3d1474a54a6a161be7adfd",
     "refs/heads/master": "529f519b9109a15adfdaf49fb9da73ce10a50e85",
     "refs/tags/1.0.0": "b79055fdd16e0657c95ee214ebb81466c5f08745",
@@ -1572,6 +1572,7 @@
     "refs/tags/v4": "d24e0230a532e19941ed264f57db38fad5b1008a",
     "refs/tags/v40": "808617f36009f0c9d6ca867c3d7322fdd0924186",
     "refs/tags/v41": "e4af7c6c79d0bfa89deb06cba1a3d49405635afc",
+    "refs/tags/v42": "6dfbeb6f1e3401329af2fc9b34448df38a124e58",
     "refs/tags/v5": "da46c5d57a43c950dfa364edc7f1f0436d5353a5",
     "refs/tags/v6": "efc9084db3d1bd145b92d6b8a2e9cb0faec54fa7",
     "refs/tags/v8": "a490fea57b349affb2623f8d22a17bf8d4b290ab",
